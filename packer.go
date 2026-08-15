@@ -17,8 +17,9 @@ func NewPackager(ms MetadataStore, ds DataStore, packDir string) *packager {
 	}
 }
 
-func (p *packager) Put(id []byte, ci ChunkInfo, data []byte) error {
-	if err := p.dataStore.WriteChunk(data); err != nil {
+func (p *packager) Put(id []byte, data []byte) error {
+	ci, err := p.dataStore.Put(data)
+	if ; err != nil {
 		return fmt.Errorf("failed writing chunk to pack: %w", err)
 	}
 

@@ -28,7 +28,7 @@ func (ci *ChunkInfo) Bytes() []byte {
 
 // panics if buf is len is less than 20
 func (ci *ChunkInfo) PutBytes(buf []byte)  {
-	_ = buf[19] // early bound check
+	_ = buf[ChunkInfoSize-1] // early bound check
 	binary.BigEndian.PutUint64(buf, ci.PackId)
 	binary.BigEndian.PutUint64(buf[8:16], ci.Offset)
 	binary.BigEndian.PutUint32(buf[16:20], ci.SizeBytes)
