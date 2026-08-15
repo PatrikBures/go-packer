@@ -40,9 +40,7 @@ func TestInit(t *testing.T) {
 	var packerMs packer.MetadataStore
 	packerMs = ms
 
-
 	if err := packerMs.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
-

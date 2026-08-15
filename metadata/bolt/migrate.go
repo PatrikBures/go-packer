@@ -20,7 +20,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 	db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(bucketVersion)
 		if bucket == nil {
-			return  ErrBucketNotFound
+			return ErrBucketNotFound
 		}
 		v := bucket.Get(keyVersion)
 		if v != nil {
@@ -41,7 +41,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 
 	var i uint64
 	if currentVersion != 0 {
-		i = currentVersion-1
+		i = currentVersion - 1
 	}
 	for ; i < targetVersion; i++ {
 		m := migrations[i]

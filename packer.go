@@ -4,22 +4,21 @@ import (
 	"fmt"
 )
 
-
 type packager struct {
 	metadataStore MetadataStore
-	dataStore DataStore
+	dataStore     DataStore
 }
 
 func NewPackager(ms MetadataStore, ds DataStore, packDir string) *packager {
 	return &packager{
 		metadataStore: ms,
-		dataStore: ds,
+		dataStore:     ds,
 	}
 }
 
 func (p *packager) Put(id []byte, data []byte) error {
 	ci, err := p.dataStore.Put(data)
-	if ; err != nil {
+	if err != nil {
 		return fmt.Errorf("failed writing chunk to pack: %w", err)
 	}
 

@@ -15,14 +15,13 @@ import (
 )
 
 type dataStore struct {
-	packDir string
-	currentPackFile *os.File
-	currentPackID uint64
+	packDir           string
+	currentPackFile   *os.File
+	currentPackID     uint64
 	currentPackOffset atomic.Uint64
 
 	packRead packread.PackRead
 }
-
 
 func Init(packDir string, currentPackID uint64) (*dataStore, error) {
 	stat, err := os.Stat(packDir)
@@ -34,9 +33,9 @@ func Init(packDir string, currentPackID uint64) (*dataStore, error) {
 	}
 
 	ds := dataStore{
-		packDir: packDir,
+		packDir:       packDir,
 		currentPackID: currentPackID,
-		packRead: packread.New(),
+		packRead:      packread.New(),
 	}
 
 	pack, err := ds.openPack(currentPackID, os.O_RDWR|os.O_CREATE)
@@ -85,9 +84,9 @@ func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
 
 func initPack(packID uint64, f *os.File) error {
 	h := header{
-		magic: defaultHeaderMagic,
+		magic:   defaultHeaderMagic,
 		version: 1,
-		packID: packID,
+		packID:  packID,
 	}
 	_, err := f.Write(h.Bytes())
 	return err
@@ -103,20 +102,19 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 	offset := ds.currentPackOffset.Add(size64) - size64
 
-
 	sizeBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(sizeBytes, size32)
 
 	if _, err := ds.currentPackFile.WriteAt(sizeBytes, int64(offset)); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
 	}
-	if _, err := ds.currentPackFile.WriteAt(data, int64(offset) + 4 ); err != nil {
+	if _, err := ds.currentPackFile.WriteAt(data, int64(offset)+4); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 
 	return packer.ChunkInfo{
-		PackId: ds.currentPackID,
-		Offset: offset - headerLen,
+		PackId:    ds.currentPackID,
+		Offset:    offset - headerLen,
 		SizeBytes: size32,
 	}, nil
 }
@@ -125,7 +123,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 //
 // buf len needs to be equal or larger than ChunkInfo.SizeBytes + 4
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
-	if len(buf) < int(ci.SizeBytes) + 4 {
+	if len(buf) < int(ci.SizeBytes)+4 {
 		return nil, errors.New("buf len is not big enough to contain the chunk")
 	}
 
@@ -141,7 +139,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 		ds.packRead.Put(ci.PackId, f)
 	}
 
-	readBytes, err := f.ReadAt(buf[:ci.SizeBytes + 4], int64(headerLen) + int64(ci.Offset))
+	readBytes, err := f.ReadAt(buf[:ci.SizeBytes+4], int64(headerLen)+int64(ci.Offset))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("reading pack: %w", err)
 	}
@@ -153,7 +151,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
 	sizeBytes := buf[:4]
 	size := binary.BigEndian.Uint32(sizeBytes)
-	
+
 	if size != ci.SizeBytes {
 		return nil, fmt.Errorf("expected to size prefix to be %d, received %d", ci.SizeBytes, size)
 	}
@@ -162,4 +160,3 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
 	return data, nil
 }
-

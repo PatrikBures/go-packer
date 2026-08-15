@@ -2,7 +2,6 @@ package packer
 
 import "testing"
 
-
 func TestChunkInfoBytes(t *testing.T) {
 	ci := ChunkInfo{
 		PackId:    89823748273,

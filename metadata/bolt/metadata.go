@@ -10,11 +10,9 @@ import (
 	"go.pabu.dev/packer"
 )
 
-
 type metadataStore struct {
 	db *bolt.DB
 }
-
 
 func Init(path string) (*metadataStore, error) {
 	db, err := bolt.Open(path, 0664, &bolt.Options{
@@ -94,7 +92,7 @@ func (ms *metadataStore) Version() (uint64, error) {
 	return version, ms.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(bucketVersion)
 		if bucket == nil {
-			return  ErrBucketNotFound
+			return ErrBucketNotFound
 		}
 		v := bucket.Get(keyVersion)
 		if v != nil {

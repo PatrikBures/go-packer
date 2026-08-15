@@ -8,9 +8,9 @@ import (
 
 func TestHeaderBytes(t *testing.T) {
 	h := header{
-		magic: []byte("PACK"),
+		magic:   []byte("PACK"),
 		version: 3,
-		packID: 89,
+		packID:  89,
 	}
 
 	b := h.Bytes()
@@ -21,23 +21,22 @@ func TestHeaderBytes(t *testing.T) {
 	}
 }
 
-
 func TestHeader(t *testing.T) {
 	testData := []header{
 		{
-			magic: []byte("asdf"),
+			magic:   []byte("asdf"),
 			version: math.MaxInt32,
-			packID: math.MaxUint64,
+			packID:  math.MaxUint64,
 		},
 		{
-			magic: []byte("TEST"),
+			magic:   []byte("TEST"),
 			version: 0,
-			packID: 0,
+			packID:  0,
 		},
 		{
-			magic: []byte("AA3a"),
+			magic:   []byte("AA3a"),
 			version: 87234,
-			packID: 898273480971,
+			packID:  898273480971,
 		},
 	}
 
@@ -51,8 +50,7 @@ func TestHeader(t *testing.T) {
 
 			if !td.Equal(n) {
 				t.Errorf("not equal\nexpected: %+v\nrecevived: %+v", td, n)
-			} 
+			}
 		})
 	}
 }
-

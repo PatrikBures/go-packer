@@ -7,6 +7,7 @@ import (
 )
 
 const headerLen = 16
+
 type header struct {
 	magic   []byte
 	version uint32
@@ -27,7 +28,7 @@ func (h *header) Bytes() []byte {
 }
 
 func (h *header) Equal(h2 header) bool {
-	return !( !slices.Equal(h.magic, h2.magic) || h.packID != h2.packID || h.version != h2.version )
+	return !(!slices.Equal(h.magic, h2.magic) || h.packID != h2.packID || h.version != h2.version)
 }
 
 func toHeader(b []byte) (header, error) {
@@ -36,8 +37,8 @@ func toHeader(b []byte) (header, error) {
 	}
 
 	return header{
-		magic: b[:4],
+		magic:   b[:4],
 		version: binary.BigEndian.Uint32(b[4:8]),
-		packID: binary.BigEndian.Uint64(b[8:16]),
+		packID:  binary.BigEndian.Uint64(b[8:16]),
 	}, nil
 }

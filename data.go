@@ -1,6 +1,5 @@
 package packer
 
-
 type DataStore interface {
 	// will only put the amount in SizeBytes from data
 	//
@@ -8,4 +7,3 @@ type DataStore interface {
 	Put(data []byte) (ChunkInfo, error)
 	Get(ci ChunkInfo) ([]byte, error)
 }
-

@@ -7,15 +7,14 @@ import (
 	"time"
 )
 
-
 type PackRead struct {
-	mu sync.Mutex
+	mu    sync.Mutex
 	packs map[uint64]pack
 }
 
 type pack struct {
 	lastRead time.Time
-	file *os.File
+	file     *os.File
 }
 
 func New() PackRead {
@@ -39,7 +38,7 @@ func (pr *PackRead) Put(packID uint64, f *os.File) {
 
 	pr.packs[packID] = pack{
 		lastRead: time.Now(),
-		file: f,
+		file:     f,
 	}
 }
 
