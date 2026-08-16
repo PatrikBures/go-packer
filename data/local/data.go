@@ -7,18 +7,23 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"sync/atomic"
+	"time"
 
+	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
 	"go.pabu.dev/packer/data/local/internal/packread"
 )
 
 type dataStore struct {
 	packDir           string
+
 	currentPackFile   *os.File
 	currentPackID     uint64
-	currentPackOffset atomic.Uint64
+	currentPackOffset atomic.Int64
+	currentPackLock   *flock.Flock
+
+	maxPackSize int64
 
 	packRead packread.PackRead
 }
@@ -47,7 +52,7 @@ func Init(packDir string, currentPackID uint64) (*dataStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	ds.currentPackOffset.Store(uint64(stat.Size()))
+	ds.currentPackOffset.Store(stat.Size())
 
 	ds.currentPackFile = pack
 
@@ -58,12 +63,10 @@ func (ds *dataStore) Close() error {
 	return errors.Join(ds.currentPackFile.Close(), ds.packRead.Close())
 }
 
-func (ds *dataStore) path(packID uint64) string {
-	return filepath.Join(ds.packDir, fmt.Sprintf("%d.pack", packID))
-}
+
 
 func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
-	f, err := os.OpenFile(ds.path(packID), mode, 0664)
+	f, err := os.OpenFile(ds.completedPackPath(packID), mode, 0664)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +85,22 @@ func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
 	return f, nil
 }
 
+
+func (ds *dataStore) newPack() error {
+	newPackID := ds.currentPackID + 1
+
+	f, err := ds.openPack(newPackID, os.O_CREATE|os.O_RDWR|os.O_EXCL)
+	if err != nil {
+		return err
+	}
+
+	ds.currentPackID = newPackID
+	ds.currentPackFile = f
+	ds.currentPackOffset.Store(headerLen)
+
+	return nil
+}
+
 func initPack(packID uint64, f *os.File) error {
 	h := header{
 		magic:   defaultHeaderMagic,
@@ -97,25 +116,39 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
 	}
 
-	size64 := uint64(len(data))
-	size32 := uint32(len(data))
+	size64 := int64(len(data))
+	sizeU32 := uint32(len(data))
 
 	offset := ds.currentPackOffset.Add(size64) - size64
 
-	sizeBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(sizeBytes, size32)
+	if offset + size64 + 4 >= ds.maxPackSize {
+		if err := ds.newPack(); errors.Is(err, os.ErrExist) {
+			// if the new pack already exists it means a different
+			// instance/goroutine already created it.
+			// so we wait a bit to make sure it is initialized.
+			time.Sleep(time.Millisecond*20) 
+		} else if err != nil {
+			return packer.ChunkInfo{}, err
+		}
+		offset = ds.currentPackOffset.Add(size64) - size64 // new offset because file changed
+	}
 
-	if _, err := ds.currentPackFile.WriteAt(sizeBytes, int64(offset)); err != nil {
+	sizeBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(sizeBytes, sizeU32)
+
+	// write size prefix
+	if _, err := ds.currentPackFile.WriteAt(sizeBytes, offset); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
 	}
-	if _, err := ds.currentPackFile.WriteAt(data, int64(offset)+4); err != nil {
+	// write the data
+	if _, err := ds.currentPackFile.WriteAt(data, offset + 4); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 
 	return packer.ChunkInfo{
 		PackId:    ds.currentPackID,
-		Offset:    offset - headerLen,
-		SizeBytes: size32,
+		Offset:    uint64(offset - headerLen),
+		SizeBytes: sizeU32,
 	}, nil
 }
 
