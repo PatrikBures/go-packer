@@ -4,26 +4,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
 )
 
 type PutCmd struct {
 	Name string `arg:"" name:"name"`
-	File *os.File `arg:"" name:"existingfile" type:"file" help:"path to put into packer"`
+	Data []byte `arg:"" name:"existingfile" type:"filecontent" help:"File to pack. Use '-' to read stdin"`
 }
 
 func (c *PutCmd) Run(ctx *Context) error {
 
-	data, err := io.ReadAll(c.File)
-	if err != nil {
-		return err
-	}
 
 	hash := sha256.Sum256([]byte(c.Name))
-	dataHash := sha256.Sum256(data)
+	dataHash := sha256.Sum256(c.Data)
 
-	if err := ctx.packager.Put(hash[:], data); err != nil {
+	if err := ctx.packager.Put(hash[:], c.Data); err != nil {
 		return err
 	}
 
