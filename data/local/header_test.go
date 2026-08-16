@@ -15,7 +15,7 @@ func TestHeaderBytes(t *testing.T) {
 
 	b := h.Bytes()
 
-	expect := []byte{80, 65, 67, 75, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 89}
+	expect := []byte{80, 65, 67, 75, 3, 0, 0, 0, 89, 0, 0, 0, 0, 0, 0, 0}
 	if !slices.Equal(expect, b) {
 		t.Fatalf("bytes not equal\nexpected: %v\nreceived: %v", expect, b)
 	}
