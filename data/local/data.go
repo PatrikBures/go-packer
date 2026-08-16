@@ -126,6 +126,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	if len(buf) < int(ci.SizeBytes)+4 {
 		return nil, errors.New("buf len is not big enough to contain the chunk")
 	}
+	expectedReadBytes := 4 + ci.SizeBytes
 
 	var f *os.File
 	if ci.PackId == ds.currentPackID {
@@ -139,12 +140,11 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 		ds.packRead.Put(ci.PackId, f)
 	}
 
-	readBytes, err := f.ReadAt(buf[:ci.SizeBytes+4], int64(headerLen)+int64(ci.Offset))
+	readBytes, err := f.ReadAt(buf[:expectedReadBytes], int64(headerLen)+int64(ci.Offset))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("reading pack: %w", err)
 	}
 
-	expectedReadBytes := 4 + ci.SizeBytes
 	if readBytes != int(expectedReadBytes) {
 		return nil, fmt.Errorf("expected to read %d bytes, read %d", expectedReadBytes, readBytes)
 	}
