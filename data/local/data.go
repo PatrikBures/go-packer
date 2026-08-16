@@ -16,7 +16,7 @@ import (
 )
 
 type dataStore struct {
-	packDir           string
+	packDir string
 
 	currentPackFile   *os.File
 	currentPackID     uint64
@@ -63,8 +63,6 @@ func (ds *dataStore) Close() error {
 	return errors.Join(ds.currentPackFile.Close(), ds.packRead.Close())
 }
 
-
-
 func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
 	f, err := os.OpenFile(ds.completedPackPath(packID), mode, 0664)
 	if err != nil {
@@ -84,7 +82,6 @@ func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
 
 	return f, nil
 }
-
 
 func (ds *dataStore) newPack() error {
 	newPackID := ds.currentPackID + 1
@@ -121,12 +118,12 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 	offset := ds.currentPackOffset.Add(size64) - size64
 
-	if offset + size64 + 4 >= ds.maxPackSize {
+	if offset+size64+4 >= ds.maxPackSize {
 		if err := ds.newPack(); errors.Is(err, os.ErrExist) {
 			// if the new pack already exists it means a different
 			// instance/goroutine already created it.
 			// so we wait a bit to make sure it is initialized.
-			time.Sleep(time.Millisecond*20) 
+			time.Sleep(time.Millisecond * 20)
 		} else if err != nil {
 			return packer.ChunkInfo{}, err
 		}
@@ -141,7 +138,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
 	}
 	// write the data
-	if _, err := ds.currentPackFile.WriteAt(data, offset + 4); err != nil {
+	if _, err := ds.currentPackFile.WriteAt(data, offset+4); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 

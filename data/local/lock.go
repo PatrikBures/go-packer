@@ -39,10 +39,9 @@ func (ds *dataStore) tryGetLockOfPack() (*flock.Flock, error) {
 	}
 
 	return nil, nil
-} 
+}
 
-
-// acquires lock if complete dir does not exist 
+// acquires lock if complete dir does not exist
 func lockNoComplete(packDir string) (*flock.Flock, error) {
 
 	stat, err := os.Stat(filepath.Join(packDir, dirNameCompleted))
@@ -67,7 +66,7 @@ func lockNoComplete(packDir string) (*flock.Flock, error) {
 
 // packIDstart is the first id it will try to lock
 func lockActive(packDir string, packIDstart uint64) (*flock.Flock, error) {
-	for i := packIDstart; i < packIDstart + 100; i++ {
+	for i := packIDstart; i < packIDstart+100; i++ {
 
 		lock := flock.New(filepath.Join(packDir, dirNameActive, packName(i)))
 

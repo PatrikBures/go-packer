@@ -13,7 +13,6 @@ type PutCmd struct {
 
 func (c *PutCmd) Run(ctx *Context) error {
 
-
 	hash := sha256.Sum256([]byte(c.Name))
 	dataHash := sha256.Sum256(c.Data)
 
@@ -26,4 +25,3 @@ func (c *PutCmd) Run(ctx *Context) error {
 
 	return nil
 }
-

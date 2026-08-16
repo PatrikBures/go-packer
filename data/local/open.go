@@ -10,7 +10,6 @@ import (
 	"github.com/gofrs/flock"
 )
 
-
 func (ds *dataStore) openPackWrite() error {
 	if err := os.Mkdir(ds.activeDir(), 0775); err != nil && errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("creating active dir: %w", err)
@@ -36,4 +35,3 @@ func (ds *dataStore) openPackWrite() error {
 
 	return nil
 }
-

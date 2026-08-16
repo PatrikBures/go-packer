@@ -8,16 +8,16 @@ import (
 type Packager struct {
 	metadataStore MetadataStore
 	dataStore     DataStore
-	pool sync.Pool
+	pool          sync.Pool
 }
 
 func New(ms MetadataStore, ds DataStore) *Packager {
 	return &Packager{
 		metadataStore: ms,
-		dataStore: ds,
+		dataStore:     ds,
 		pool: sync.Pool{
 			New: func() any {
-				return make([]byte, 1024 << 10)
+				return make([]byte, 1024<<10)
 			},
 		},
 	}

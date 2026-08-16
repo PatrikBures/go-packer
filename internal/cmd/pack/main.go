@@ -12,9 +12,9 @@ import (
 	"go.pabu.dev/packer/metadata/bolt"
 )
 
-type Context struct{
+type Context struct {
 	packager *packer.Packager
-	tmpDir string
+	tmpDir   string
 }
 
 var cli struct {
@@ -34,16 +34,15 @@ func main() {
 
 	err = ctx.Run(&Context{
 		packager: p,
-		tmpDir: dir,
+		tmpDir:   dir,
 	})
 
 	ctx.FatalIfErrorf(err)
 }
 
-
 func setupPackager(dir string) (*packer.Packager, error) {
 
-	if err := os.Mkdir(dir, 0775); err != nil && !errors.Is(err, os.ErrExist){
+	if err := os.Mkdir(dir, 0775); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
 

@@ -27,4 +27,3 @@ func (c *GetCmd) Run(ctx *Context) error {
 
 	return nil
 }
-
