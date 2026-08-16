@@ -96,7 +96,7 @@ func (ms *metadataStore) Version() (uint64, error) {
 		}
 		v := bucket.Get(keyVersion)
 		if v != nil {
-			version = binary.BigEndian.Uint64(v)
+			version = binary.LittleEndian.Uint64(v)
 		}
 		return nil
 	})

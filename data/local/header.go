@@ -21,8 +21,8 @@ func (h *header) Bytes() []byte {
 
 	copy(b[:4], h.magic)
 
-	binary.BigEndian.PutUint32(b[4:8], h.version)
-	binary.BigEndian.PutUint64(b[8:16], h.packID)
+	binary.LittleEndian.PutUint32(b[4:8], h.version)
+	binary.LittleEndian.PutUint64(b[8:16], h.packID)
 
 	return b
 }
@@ -38,7 +38,7 @@ func toHeader(b []byte) (header, error) {
 
 	return header{
 		magic:   b[:4],
-		version: binary.BigEndian.Uint32(b[4:8]),
-		packID:  binary.BigEndian.Uint64(b[8:16]),
+		version: binary.LittleEndian.Uint32(b[4:8]),
+		packID:  binary.LittleEndian.Uint64(b[8:16]),
 	}, nil
 }

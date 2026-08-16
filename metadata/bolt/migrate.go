@@ -24,7 +24,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 		}
 		v := bucket.Get(keyVersion)
 		if v != nil {
-			currentVersion = binary.BigEndian.Uint64(v)
+			currentVersion = binary.LittleEndian.Uint64(v)
 		}
 		return nil
 	})
@@ -53,7 +53,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 			}
 
 			buf := make([]byte, 8)
-			binary.BigEndian.PutUint64(buf, i+1)
+			binary.LittleEndian.PutUint64(buf, i+1)
 			versionBucket.Put(keyVersion, buf)
 
 			return m(tx)

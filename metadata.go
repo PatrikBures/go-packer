@@ -30,9 +30,9 @@ func (ci *ChunkInfo) Bytes() []byte {
 // panics if buf is len is less than 20
 func (ci *ChunkInfo) PutBytes(buf []byte) {
 	_ = buf[ChunkInfoSize-1] // early bound check
-	binary.BigEndian.PutUint64(buf, ci.PackId)
-	binary.BigEndian.PutUint64(buf[8:16], ci.Offset)
-	binary.BigEndian.PutUint32(buf[16:20], ci.SizeBytes)
+	binary.LittleEndian.PutUint64(buf, ci.PackId)
+	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
+	binary.LittleEndian.PutUint32(buf[16:20], ci.SizeBytes)
 }
 
 var (
@@ -45,8 +45,8 @@ func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
 		return ChunkInfo{}, ErrSliceTooSmall
 	}
 	return ChunkInfo{
-		PackId:    binary.BigEndian.Uint64(b[0:8]),
-		Offset:    binary.BigEndian.Uint64(b[8:16]),
-		SizeBytes: binary.BigEndian.Uint32(b[16:20]),
+		PackId:    binary.LittleEndian.Uint64(b[0:8]),
+		Offset:    binary.LittleEndian.Uint64(b[8:16]),
+		SizeBytes: binary.LittleEndian.Uint32(b[16:20]),
 	}, nil
 }

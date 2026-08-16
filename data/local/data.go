@@ -103,7 +103,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	offset := ds.currentPackOffset.Add(size64) - size64
 
 	sizeBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(sizeBytes, size32)
+	binary.LittleEndian.PutUint32(sizeBytes, size32)
 
 	if _, err := ds.currentPackFile.WriteAt(sizeBytes, int64(offset)); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
@@ -150,7 +150,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	}
 
 	sizeBytes := buf[:4]
-	size := binary.BigEndian.Uint32(sizeBytes)
+	size := binary.LittleEndian.Uint32(sizeBytes)
 
 	if size != ci.SizeBytes {
 		return nil, fmt.Errorf("expected to size prefix to be %d, received %d", ci.SizeBytes, size)
