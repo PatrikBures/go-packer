@@ -1,6 +1,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,27 +13,27 @@ import (
 
 func (ds *dataStore) tryGetLockOfPack() (*flock.Flock, error) {
 	// there is a pack in active dir
-	lock, err := lockLargestPack(ds.packDir)
+	lock, err := ds.lockLargestPack()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("locking largest pack: %w", err)
 	}
 	if lock != nil {
 		return lock, nil
 	}
 
 	// completed dir does not exist
-	lock, err = lockNoComplete(ds.packDir)
+	lock, err = ds.lockNoComplete()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("locking with no complete dir: %w", err)
 	}
 	if lock != nil {
 		return lock, nil
 	}
 
 	// completed dir exists
-	lock, err = lockLatestFromComplete(ds.packDir)
+	lock, err = ds.lockLatestFromComplete()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("locking from latest pack: %w", err)
 	}
 	if lock != nil {
 		return lock, nil
@@ -42,19 +43,18 @@ func (ds *dataStore) tryGetLockOfPack() (*flock.Flock, error) {
 }
 
 // acquires lock if complete dir does not exist
-func lockNoComplete(packDir string) (*flock.Flock, error) {
+func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
 
-	stat, err := os.Stat(filepath.Join(packDir, dirNameCompleted))
-	if err == os.ErrNotExist {
-		lock, err := lockActive(packDir, 0)
+	stat, err := os.Stat(ds.completedDir())
+	if errors.Is(err, os.ErrNotExist) {
+		lock, err := ds.lockActive(0)
 		if err != nil {
 			return nil, err
 		}
 		if lock != nil {
 			return lock, nil
 		}
-	}
-	if err != nil {
+	} else if err != nil {
 		return nil, err
 	}
 	if !stat.IsDir() {
@@ -65,10 +65,10 @@ func lockNoComplete(packDir string) (*flock.Flock, error) {
 }
 
 // packIDstart is the first id it will try to lock
-func lockActive(packDir string, packIDstart uint64) (*flock.Flock, error) {
+func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 	for i := packIDstart; i < packIDstart+100; i++ {
 
-		lock := flock.New(filepath.Join(packDir, dirNameActive, packName(i)))
+		lock := flock.New(ds.activePackPath(i))
 
 		locked, err := lock.TryLock()
 		if err != nil {
@@ -88,9 +88,9 @@ func lockActive(packDir string, packIDstart uint64) (*flock.Flock, error) {
 }
 
 // finds the latest pack in completed dir, and tries to lock any id starting from that
-func lockLatestFromComplete(packDir string) (*flock.Flock, error) {
+func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, error) {
 	var latestDir string
-	if err := filepath.WalkDir(filepath.Join(packDir, dirNameCompleted), func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(ds.completedDir(), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -102,6 +102,8 @@ func lockLatestFromComplete(packDir string) (*flock.Flock, error) {
 	}); err != nil {
 		return nil, err
 	}
+
+	fmt.Println("latestDir:", latestDir)
 
 	var latestPack string
 	if err := filepath.WalkDir(latestDir, func(path string, d fs.DirEntry, err error) error {
@@ -117,14 +119,19 @@ func lockLatestFromComplete(packDir string) (*flock.Flock, error) {
 		return nil, err
 	}
 
+	fmt.Println("latestPack:", latestPack)
+
 	latestPackID, err := packIdFromPath(latestPack)
 	if err != nil {
 		return nil, err
 	}
 
-	nextPackID := latestPackID + 1
 
-	return lockActive(packDir, nextPackID)
+	nextPackID := latestPackID + 1
+	fmt.Println("latestPackID:", latestPackID)
+	fmt.Println("nextPackID:", nextPackID)
+
+	return ds.lockActive(nextPackID)
 }
 
 type fileItem struct {
@@ -133,9 +140,9 @@ type fileItem struct {
 }
 
 // if flock and err are nil, it means that no active pack was unlocked
-func lockLargestPack(dir string) (*flock.Flock, error) {
+func (ds *dataStore) lockLargestPack() (*flock.Flock, error) {
 
-	files, err := sortedFilesLargestDesc(dir)
+	files, err := sortedFilesLargestDesc(ds.activeDir())
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +154,7 @@ func lockLargestPack(dir string) (*flock.Flock, error) {
 	var locked bool
 	var lock *flock.Flock
 	for _, f := range files {
-		fp := filepath.Join(dirNameActive, f.name)
+		fp := filepath.Join(ds.activeDir(), f.name)
 
 		lock = flock.New(fp)
 

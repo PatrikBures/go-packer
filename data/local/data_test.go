@@ -9,7 +9,7 @@ func TestData(t *testing.T) {
 	tempDir := t.TempDir()
 	buf := make([]byte, 100)
 
-	ds, err := Init(tempDir, 1)
+	ds, err := Init(tempDir)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"sync/atomic"
-	"time"
 
 	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
@@ -28,7 +27,20 @@ type dataStore struct {
 	packRead packread.PackRead
 }
 
-func Init(packDir string, currentPackID uint64) (*dataStore, error) {
+const minPackSize = 1024 << 10 // 1MiB
+const defaultPackSize = 1024 << 16 // 64MiB
+type Option func(ds *dataStore)
+
+// if bytes is less than 1MiB, it will clamp to 1MiB
+func WithMaxPackSize(bytes int64) Option {
+	return func(ds *dataStore) {
+		ds.maxPackSize = max(minPackSize, bytes)
+	}
+}
+
+// Default maxPackSize is 64MiB
+func Init(packDir string, opts ...Option) (*dataStore, error) {
+
 	stat, err := os.Stat(packDir)
 	if err != nil {
 		return nil, err
@@ -39,22 +51,17 @@ func Init(packDir string, currentPackID uint64) (*dataStore, error) {
 
 	ds := dataStore{
 		packDir:       packDir,
-		currentPackID: currentPackID,
 		packRead:      packread.New(),
+		maxPackSize:   defaultPackSize,
 	}
 
-	pack, err := ds.openPack(currentPackID, os.O_RDWR|os.O_CREATE)
-	if err != nil {
+	for _, opt := range opts {
+		opt(&ds)
+	}
+	
+	if _, err := ds.openPackWrite(); err != nil {
 		return nil, err
 	}
-
-	stat, err = pack.Stat()
-	if err != nil {
-		return nil, err
-	}
-	ds.currentPackOffset.Store(stat.Size())
-
-	ds.currentPackFile = pack
 
 	return &ds, nil
 }
@@ -63,50 +70,6 @@ func (ds *dataStore) Close() error {
 	return errors.Join(ds.currentPackFile.Close(), ds.packRead.Close())
 }
 
-func (ds *dataStore) openPack(packID uint64, mode int) (*os.File, error) {
-	f, err := os.OpenFile(ds.completedPackPath(packID), mode, 0664)
-	if err != nil {
-		return nil, err
-	}
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	if stat.Size() == 0 {
-		if err := initPack(packID, f); err != nil {
-			return nil, fmt.Errorf("initializing pack: %w", err)
-		}
-	}
-
-	return f, nil
-}
-
-func (ds *dataStore) newPack() error {
-	newPackID := ds.currentPackID + 1
-
-	f, err := ds.openPack(newPackID, os.O_CREATE|os.O_RDWR|os.O_EXCL)
-	if err != nil {
-		return err
-	}
-
-	ds.currentPackID = newPackID
-	ds.currentPackFile = f
-	ds.currentPackOffset.Store(headerLen)
-
-	return nil
-}
-
-func initPack(packID uint64, f *os.File) error {
-	h := header{
-		magic:   defaultHeaderMagic,
-		version: 1,
-		packID:  packID,
-	}
-	_, err := f.Write(h.Bytes())
-	return err
-}
 
 func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	if len(data) > math.MaxUint32 {
@@ -119,15 +82,11 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	offset := ds.currentPackOffset.Add(size64) - size64
 
 	if offset+size64+4 >= ds.maxPackSize {
-		if err := ds.newPack(); errors.Is(err, os.ErrExist) {
-			// if the new pack already exists it means a different
-			// instance/goroutine already created it.
-			// so we wait a bit to make sure it is initialized.
-			time.Sleep(time.Millisecond * 20)
-		} else if err != nil {
-			return packer.ChunkInfo{}, err
+		newOffset, err := ds.openPackWriteNext()
+		if err != nil {
+			return packer.ChunkInfo{}, fmt.Errorf("opening new pack as it reached maxsize: %w", err)
 		}
-		offset = ds.currentPackOffset.Add(size64) - size64 // new offset because file changed
+		offset = newOffset
 	}
 
 	sizeBytes := make([]byte, 4)
@@ -162,12 +121,11 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	if ci.PackId == ds.currentPackID {
 		f = ds.currentPackFile
 	} else if f = ds.packRead.Get(ci.PackId); f == nil {
-		nf, err := ds.openPack(ci.PackId, os.O_RDONLY)
+		nf, err := ds.openPackRead(ci.PackId)
 		if err != nil {
 			return nil, fmt.Errorf("opening pack: %w", err)
 		}
 		f = nf
-		ds.packRead.Put(ci.PackId, f)
 	}
 
 	readBytes, err := f.ReadAt(buf[:expectedReadBytes], int64(headerLen)+int64(ci.Offset))
