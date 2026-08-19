@@ -4,7 +4,7 @@ import "testing"
 
 func TestChunkInfoBytes(t *testing.T) {
 	ci := ChunkInfo{
-		PackId:    89823748273,
+		PackID:    89823748273,
 		Offset:    892787,
 		SizeBytes: 1111111111,
 	}

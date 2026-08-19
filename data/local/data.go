@@ -102,7 +102,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	}
 
 	return packer.ChunkInfo{
-		PackId:    ds.currentPackID,
+		PackID:    ds.currentPackID,
 		Offset:    uint64(offset - headerLen),
 		SizeBytes: sizeU32,
 	}, nil
@@ -117,7 +117,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	}
 	expectedReadBytes := 4 + ci.SizeBytes
 
-	f, err := ds.openPackRead(ci.PackId)
+	f, err := ds.openPackRead(ci.PackID)
 	if err != nil {
 		return nil, fmt.Errorf("opening pack for reading: %w", err)
 	}

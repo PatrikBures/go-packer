@@ -16,7 +16,7 @@ type MetadataStore interface {
 const ChunkInfoSize = 20
 
 type ChunkInfo struct {
-	PackId    uint64
+	PackID    uint64
 	Offset    uint64
 	SizeBytes uint32
 }
@@ -30,7 +30,7 @@ func (ci *ChunkInfo) Bytes() []byte {
 // panics if buf is len is less than 20
 func (ci *ChunkInfo) PutBytes(buf []byte) {
 	_ = buf[ChunkInfoSize-1] // early bound check
-	binary.LittleEndian.PutUint64(buf, ci.PackId)
+	binary.LittleEndian.PutUint64(buf, ci.PackID)
 	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
 	binary.LittleEndian.PutUint32(buf[16:20], ci.SizeBytes)
 }
@@ -45,7 +45,7 @@ func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
 		return ChunkInfo{}, ErrSliceTooSmall
 	}
 	return ChunkInfo{
-		PackId:    binary.LittleEndian.Uint64(b[0:8]),
+		PackID:    binary.LittleEndian.Uint64(b[0:8]),
 		Offset:    binary.LittleEndian.Uint64(b[8:16]),
 		SizeBytes: binary.LittleEndian.Uint32(b[16:20]),
 	}, nil
