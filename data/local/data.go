@@ -117,15 +117,9 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	}
 	expectedReadBytes := 4 + ci.SizeBytes
 
-	var f *os.File
-	if ci.PackId == ds.currentPackID {
-		f = ds.currentPackFile
-	} else if f = ds.packRead.Get(ci.PackId); f == nil {
-		nf, err := ds.openPackRead(ci.PackId)
-		if err != nil {
-			return nil, fmt.Errorf("opening pack: %w", err)
-		}
-		f = nf
+	f, err := ds.openPackRead(ci.PackId)
+	if err != nil {
+		return nil, fmt.Errorf("opening pack for reading: %w", err)
 	}
 
 	readBytes, err := f.ReadAt(buf[:expectedReadBytes], int64(headerLen)+int64(ci.Offset))

@@ -107,11 +107,18 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 
 
 func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
+	if packID == ds.currentPackID {
+		return ds.currentPackFile, nil
+	}
+	f := ds.packRead.Get(packID)
+	if f != nil {
+		return f, nil
+	}
+	
 	f, err := os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
 	if err != nil {
 		return nil, err
 	}
-
 	ds.packRead.Put(packID, f)
 
 	return f, nil
