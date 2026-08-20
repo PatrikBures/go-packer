@@ -21,9 +21,10 @@ func (c *GetCmd) Run(ctx *Context) error {
 
 	datahash := sha256.Sum256(data)
 	fmt.Println("datahash:", hex.EncodeToString(datahash[:]))
-	fmt.Println("data:")
-
-	fmt.Println(string(data))
+	if len(data) < 1024 {
+		fmt.Println("data:")
+		fmt.Println(string(data))
+	}
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sync/atomic"
 
 	"github.com/gofrs/flock"
@@ -23,6 +24,7 @@ type dataStore struct {
 	currentPackLock   *flock.Flock
 
 	maxPackSize int64
+	growBuf     bool
 
 	packRead packread.PackRead
 }
@@ -35,6 +37,13 @@ type Option func(ds *dataStore)
 func WithMaxPackSize(bytes int64) Option {
 	return func(ds *dataStore) {
 		ds.maxPackSize = max(minPackSize, bytes)
+	}
+}
+// instead of returning and error when getting a chunk
+// if the chunk won't fit in the buf, grow the buf.
+func WithGrowBuf() Option {
+	return func(ds *dataStore) {
+		ds.growBuf = true
 	}
 }
 
@@ -112,9 +121,16 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 //
 // buf len needs to be equal or larger than ChunkInfo.SizeBytes + 4
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
-	if len(buf) < int(ci.SizeBytes)+4 {
-		return nil, errors.New("buf len is not big enough to contain the chunk")
+
+	expectedReadBytesI := int(ci.SizeBytes)+4
+	if len(buf) <  expectedReadBytesI {
+		if !ds.growBuf {
+			return nil, errors.New("buf len is not big enough to contain the chunk")
+		}
+		needed := expectedReadBytesI - len(buf)
+		buf = slices.Grow(buf, needed)[:expectedReadBytesI]
 	}
+
 	expectedReadBytes := 4 + ci.SizeBytes
 
 	f, err := ds.openPackRead(ci.PackID)
