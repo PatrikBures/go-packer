@@ -22,7 +22,7 @@ func TestInit(t *testing.T) {
 	}
 
 	if err := ms.db.View(func(tx *bolt.Tx) error {
-		version, err := ms.Version()
+		version, err := ms.version()
 		if err != nil {
 			return err
 		}

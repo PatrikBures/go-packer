@@ -67,6 +67,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 
 var bucketChunks = []byte("chunks")
 var bucketVersion = []byte("version")
+var bucketPacks = []byte("packs")
 
 var keyVersion = []byte("current")
 
@@ -76,7 +77,7 @@ var migrations = []func(tx *bolt.Tx) error{
 		return err
 	},
 	func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucket([]byte("packs"))
+		_, err := tx.CreateBucket(bucketPacks)
 		return err
 	},
 }

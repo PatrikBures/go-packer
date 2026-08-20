@@ -24,6 +24,12 @@ func New(ms MetadataStore, ds DataStore) *Packager {
 }
 
 func (p *Packager) Put(id []byte, data []byte) error {
+	if ok, err := p.metadataStore.Exists(id); err != nil {
+		return fmt.Errorf("checking if chunk already exists: %w", err)
+	} else if ok {
+		return nil
+	}
+
 	ci, err := p.dataStore.Put(data)
 	if err != nil {
 		return fmt.Errorf("failed writing chunk to pack: %w", err)

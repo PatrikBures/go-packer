@@ -9,8 +9,10 @@ type MetadataStore interface {
 	Close() error
 	Put(id []byte, ci ChunkInfo) error
 	Get(id []byte) (ChunkInfo, error)
+	Exists(id []byte) (bool, error)
 	Delete(id []byte) error
-	Version() (uint64, error)
+	Packs() ([]uint64, error)
+	ChunkCount(packID uint64) (uint64, error)
 }
 
 const ChunkInfoSize = 20
@@ -28,18 +30,19 @@ func (ci *ChunkInfo) Bytes() []byte {
 }
 
 // panics if buf is len is less than 20
-func (ci *ChunkInfo) PutBytes(buf []byte) {
+func (ci *ChunkInfo) PutBytes(buf []byte) []byte {
 	_ = buf[ChunkInfoSize-1] // early bound check
 	binary.LittleEndian.PutUint64(buf, ci.PackID)
 	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
 	binary.LittleEndian.PutUint32(buf[16:20], ci.SizeBytes)
+	return buf[:20]
 }
 
 var (
 	ErrSliceTooSmall = errors.New("provided slice is too small")
 )
 
-// can returns ErrSliceTooSmall
+// can return ErrSliceTooSmall
 func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
 	if len(b) < 20 {
 		return ChunkInfo{}, ErrSliceTooSmall
