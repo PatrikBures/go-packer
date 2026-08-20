@@ -29,13 +29,14 @@ func (ci *ChunkInfo) Bytes() []byte {
 	return buf
 }
 
+// converts ChunkInfo into buf[0:20]
+//
 // panics if buf is len is less than 20
-func (ci *ChunkInfo) PutBytes(buf []byte) []byte {
+func (ci *ChunkInfo) PutBytes(buf []byte) {
 	_ = buf[ChunkInfoSize-1] // early bound check
 	binary.LittleEndian.PutUint64(buf, ci.PackID)
 	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
 	binary.LittleEndian.PutUint32(buf[16:20], ci.SizeBytes)
-	return buf[:20]
 }
 
 var (

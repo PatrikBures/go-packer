@@ -81,7 +81,10 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 			return err
 		}
 
-		return bc.Put(id, ci.PutBytes(buf[12:32]))
+		chunkInfoBytes := buf[12:32]
+		ci.PutBytes(buf[12:32])
+
+		return bc.Put(id, chunkInfoBytes)
 	}); err != nil {
 		return err
 	}
