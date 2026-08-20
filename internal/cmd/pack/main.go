@@ -51,7 +51,7 @@ func setupPackager(dir string) (*packer.Packager, error) {
 		return nil, err
 	}
 
-	ds, err := local.Init(dir, local.WithGrowBuf())
+	ds, err := local.Init(dir, local.WithGrowBuf(true))
 	if err != nil {
 		return nil, err
 	}

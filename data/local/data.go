@@ -41,9 +41,9 @@ func WithMaxPackSize(bytes int64) Option {
 }
 // instead of returning and error when getting a chunk
 // if the chunk won't fit in the buf, grow the buf.
-func WithGrowBuf() Option {
+func WithGrowBuf(b bool) Option {
 	return func(ds *dataStore) {
-		ds.growBuf = true
+		ds.growBuf = b
 	}
 }
 
@@ -75,8 +75,10 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 	return &ds, nil
 }
 
+// Returns error for closing write pack
 func (ds *dataStore) Close() error {
-	return errors.Join(ds.currentPackFile.Close(), ds.packRead.Close())
+	ds.packRead.Close()
+	return ds.currentPackFile.Close()
 }
 
 
