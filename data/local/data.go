@@ -33,6 +33,8 @@ const minPackSize = 1024 << 10 // 1MiB
 const defaultPackSize = 1024 << 16 // 64MiB
 type Option func(ds *dataStore)
 
+const prefixLen = 4
+
 // if bytes is less than 1MiB, it will clamp to 1MiB
 func WithMaxPackSize(bytes int64) Option {
 	return func(ds *dataStore) {
@@ -88,7 +90,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 	offset := ds.currentPackOffset.Add(size64) - size64
 
-	if offset+size64+4 >= ds.maxPackSize {
+	if offset+size64+prefixLen >= ds.maxPackSize {
 		newOffset, err := ds.openPackWriteNext()
 		if err != nil {
 			return packer.ChunkInfo{}, fmt.Errorf("opening new pack as it reached maxsize: %w", err)
@@ -96,7 +98,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		offset = newOffset
 	}
 
-	sizeBytes := make([]byte, 4)
+	sizeBytes := make([]byte, prefixLen)
 	binary.LittleEndian.PutUint32(sizeBytes, sizeU32)
 
 	// write size prefix
@@ -104,7 +106,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
 	}
 	// write the data
-	if _, err := ds.currentPackFile.WriteAt(data, offset+4); err != nil {
+	if _, err := ds.currentPackFile.WriteAt(data, offset+prefixLen); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 
@@ -117,10 +119,10 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 // reads chunk into buf, returning the slice containing the chunk
 //
-// buf len needs to be equal or larger than ChunkInfo.SizeBytes + 4
+// buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
-	expectedReadBytesI := int(ci.SizeBytes)+4
+	expectedReadBytesI := int(ci.SizeBytes)+prefixLen
 	if len(buf) <  expectedReadBytesI {
 		if !ds.growBuf {
 			return nil, errors.New("buf len is not big enough to contain the chunk")
@@ -129,7 +131,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 		buf = slices.Grow(buf, needed)[:expectedReadBytesI]
 	}
 
-	expectedReadBytes := 4 + ci.SizeBytes
+	expectedReadBytes := ci.SizeBytes + prefixLen
 
 	f, err := ds.openPackRead(ci.PackID)
 	if err != nil {
@@ -152,7 +154,15 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 		return nil, fmt.Errorf("expected to size prefix to be %d, received %d", ci.SizeBytes, size)
 	}
 
-	data := buf[4:readBytes]
+	data := buf[prefixLen:readBytes]
 
 	return data, nil
+}
+
+
+func (ds *dataStore) NormalizePackInfo(packs map[uint64]packer.PackInfo) {
+	for k, v := range packs {
+		v.ChunkTotalSize += headerLen + (v.ChunkCount * prefixLen)
+		packs[k] = v
+	}
 }

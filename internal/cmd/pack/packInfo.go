@@ -11,6 +11,7 @@ import (
 
 type PackInfoCmd struct {
 	PackIDs []uint64 `arg:"" optional:"" name:"packIDs"`
+	Human   bool     `name:"human" short:"u" help:"Human readable sizes"`
 }
 
 func (c *PackInfoCmd) Run(ctx *Context) (err error) {
@@ -44,7 +45,15 @@ func (c *PackInfoCmd) Run(ctx *Context) (err error) {
 		if !ok {
 			continue
 		}
-		fmt.Printf("packID: % 4d, chunks: % 4d, totalSize: % 6s\n", packID, info.ChunkCount, bytesize.FormatIEC(info.ChunkTotalSize))
+
+		var ts string
+		if c.Human {
+			ts = fmt.Sprintf("% 6s", bytesize.FormatIEC(info.ChunkTotalSize))
+		} else {
+			ts = fmt.Sprintf("% 10d", info.ChunkTotalSize)
+		}
+
+		fmt.Printf("packID: % 4d, chunks: % 4d, totalSize: %s\n", packID, info.ChunkCount, ts)
 	}
 
 	return nil
