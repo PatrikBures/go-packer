@@ -14,6 +14,7 @@ type MetadataStore interface {
 	Packs() ([]uint64, error)
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
+	PackInfoAll() (map[uint64]PackInfo, error)
 }
 
 const ChunkInfoSize = 20

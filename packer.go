@@ -75,3 +75,6 @@ func (p *Packager) Chunks(packIDs []uint64) ([]ChunkInfo, error) {
 func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
 	return p.metadataStore.PackInfo(packIDs)
 }
+func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
+	return p.metadataStore.PackInfoAll()
+}
