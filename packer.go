@@ -58,3 +58,7 @@ func (p *Packager) Get(id []byte) ([]byte, error) {
 
 	return data, nil
 }
+
+func (p *Packager) Delete(id []byte) error {
+	return p.metadataStore.Delete(id)
+}
