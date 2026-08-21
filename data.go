@@ -6,4 +6,5 @@ type DataStore interface {
 	// returns the offset excluding the headersize but not the size prefix for each chunk
 	Put(data []byte) (ChunkInfo, error)
 	Get(ChunkInfo, []byte) ([]byte, error)
+	Close() error
 }

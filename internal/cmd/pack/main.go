@@ -38,6 +38,10 @@ func main() {
 		tmpDir:   dir,
 	})
 
+	if cerr := p.Close(); cerr != nil {
+		ctx.Errorf("closing packager: %v", cerr)
+	}
+
 	ctx.FatalIfErrorf(err)
 }
 

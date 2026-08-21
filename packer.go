@@ -1,6 +1,7 @@
 package packer
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -21,6 +22,10 @@ func New(ms MetadataStore, ds DataStore) *Packager {
 			},
 		},
 	}
+}
+
+func (p *Packager) Close() error {
+	return errors.Join(p.metadataStore.Close(), p.dataStore.Close())
 }
 
 func (p *Packager) Put(id []byte, data []byte) error {
