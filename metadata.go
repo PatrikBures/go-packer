@@ -12,15 +12,21 @@ type MetadataStore interface {
 	Exists(id []byte) (bool, error)
 	Delete(id []byte) error
 	Packs() ([]uint64, error)
-	ChunkCount(packID uint64) (uint64, error)
+	Chunks(packIDs []uint64) ([]ChunkInfo, error)
+	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
 }
 
 const ChunkInfoSize = 20
 
 type ChunkInfo struct {
-	PackID    uint64
-	Offset    uint64
-	SizeBytes uint32
+	PackID    uint64 // [0:8]
+	Offset    uint64 // [8:16]
+	SizeBytes uint32 // [16:20]
+}
+
+type PackInfo struct {
+	ChunkCount     uint64
+	ChunkTotalSize uint64
 }
 
 func (ci *ChunkInfo) Bytes() []byte {
@@ -45,7 +51,7 @@ var (
 
 // can return ErrSliceTooSmall
 func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
-	if len(b) < 20 {
+	if len(b) < ChunkInfoSize {
 		return ChunkInfo{}, ErrSliceTooSmall
 	}
 	return ChunkInfo{

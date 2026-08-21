@@ -67,3 +67,11 @@ func (p *Packager) Get(id []byte) ([]byte, error) {
 func (p *Packager) Delete(id []byte) error {
 	return p.metadataStore.Delete(id)
 }
+
+func (p *Packager) Chunks(packIDs []uint64) ([]ChunkInfo, error) {
+	return p.metadataStore.Chunks(packIDs)
+}
+
+func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
+	return p.metadataStore.PackInfo(packIDs)
+}

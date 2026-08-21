@@ -18,9 +18,11 @@ type Context struct {
 }
 
 var cli struct {
-	Put    PutCmd      `cmd:"" help:"add files to packer"`
-	Get    GetCmd      `cmd:"" help:"get data from packer"`
-	Delete DeleteCmd   `cmd:"" help:"delete chunk"`
+	Put         PutCmd      `cmd:"" help:"add files to packer"`
+	Get         GetCmd      `cmd:"" help:"get data from packer"`
+	Delete      DeleteCmd   `cmd:"" help:"delete chunk"`
+	Chunks      ChunksCmd   `cmd:"" help:"get all chunks in packs"`
+	PackInfo    PackInfoCmd `cmd:"" help:"get chunk info about packs"`
 }
 
 func main() {
