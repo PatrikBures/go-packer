@@ -50,12 +50,8 @@ func WithGrowBuf(b bool) Option {
 // Default maxPackSize is 64MiB
 func Init(packDir string, opts ...Option) (*dataStore, error) {
 
-	stat, err := os.Stat(packDir)
-	if err != nil {
+	if err := os.MkdirAll(packDir, 0775); err != nil {
 		return nil, err
-	}
-	if !stat.IsDir() {
-		return nil, fmt.Errorf("packdir is not a dir: %s", packDir)
 	}
 
 	ds := dataStore{
