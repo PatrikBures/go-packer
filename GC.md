@@ -29,8 +29,9 @@ the info can be:
     map can be
     ```go
     type ChunkInfoWithID struct {
-        ChunkID []byte
+        Offset  uint64
         Size    uint32
+        ChunkID []byte
     }
     type info struct {
         RefCount  uint32
@@ -41,14 +42,8 @@ the info can be:
     var GCinfo map[uint64]info
     ```
     - it will first get all packs and their ref count. 
-    - go through all chunks adding their ChunkInfo to a map with packId as mapkey
-        the ChunkInfo struct needs to be modified to also include ChunkID
-    - whenever a new chunk is added to the map, it will check if the RefCount == len(Chunks)
-        if it is. then it can check if the pack should be garbage 
-        collected. if yes, set ShouldGC to true. else delete pack from map
-        
-        if the pack does not exist in the map, it will add it with a base TotalSize of 20
-        any chunksize added will also add another prefixLen
+    - pass that to dataStore, which will remove all packs that should NOT be garbage collected
+    - pass the updated map to metadataStore which will get all chunks to be garbage collected in each pack
 
     how it determintes that a pack should GC:
         the dataStore struct has a var which has a threshold, which is the size a pack needs to be below to GC.
