@@ -295,6 +295,33 @@ func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
 	return packInfos, nil
 }
 
+func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[uint64][]packer.ChunkInfo, error) {
+	packChunks := make(map[uint64][]packer.ChunkInfo)
+
+	return packChunks, ms.db.View(func(tx *bolt.Tx) error {
+		cb := tx.Bucket(bucketChunks)
+		if cb == nil {
+			return ErrBucketNotFound
+		}
+
+		return cb.ForEach(func(k, v []byte) error {
+			if len(v) < packer.ChunkInfoSize {
+				return nil
+			}
+
+			packID := binary.LittleEndian.Uint64(v[0:8])
+			if _, ok := packs[packID]; !ok {
+				return nil
+			}
+
+			ci, _ := packer.BytesToChunkInfo(v)
+			packChunks[packID] = append(packChunks[packID], ci)
+
+			return nil
+		})
+	})
+}
+
 func (ms *metadataStore) version() (uint64, error) {
 	var version uint64
 	return version, ms.db.View(func(tx *bolt.Tx) error {

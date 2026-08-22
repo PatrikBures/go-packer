@@ -21,6 +21,12 @@ func (ds *dataStore) openPackWriteNext() (size int64, err error) {
 	return ds.createPack(packID, lock)
 }
 
+func (ds *dataStore) openPackCompact() (*os.File, error) {
+	return nil, nil
+
+}
+
+
 
 // Automatically opens the next snapshot. 
 //

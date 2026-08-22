@@ -9,25 +9,31 @@ import (
 
 const dirNameCompleted = "completed"
 const dirNameActive = "active"
+const dirNameCompact = "compact"
 
 func packName(packID uint64) string {
 	return fmt.Sprintf("pack-%d.bin", packID)
 }
+
 func (ds *dataStore) completedPackPath(packID uint64) string {
 	dir := packID >> 10
 	return filepath.Join(ds.packDir, dirNameCompleted, strconv.FormatUint(dir, 10), packName(packID))
 }
-
 func (ds *dataStore) activePackPath(packID uint64) string {
 	return filepath.Join(ds.packDir, dirNameActive, packName(packID))
 }
-
-func (ds *dataStore) activeDir() string {
-	return filepath.Join(ds.packDir, dirNameActive)
+func (ds *dataStore) compactPackPath(packID uint64) string {
+	return filepath.Join(ds.packDir, dirNameCompact, packName(packID))
 }
 
 func (ds *dataStore) completedDir() string {
 	return filepath.Join(ds.packDir, dirNameCompleted)
+}
+func (ds *dataStore) activeDir() string {
+	return filepath.Join(ds.packDir, dirNameActive)
+}
+func (ds *dataStore) compactDir() string {
+	return filepath.Join(ds.packDir, dirNameCompact)
 }
 
 func packIdFromPath(path string) (uint64, error) {

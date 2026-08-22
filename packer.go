@@ -91,6 +91,17 @@ func (p *Packager) Compact() error {
 		return fmt.Errorf("getting all packs: %w", err)
 	}
 	p.dataStore.FilterCompactable(packs)
+
+	if len(packs) == 0 {
+		return nil
+	}
+
+	_, err = p.metadataStore.ChunksForPacks(packs)
+	if err != nil {
+		return fmt.Errorf("getting chunks for each pack: %w", err)
+	}
+
+
 	return nil
 }
 

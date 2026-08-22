@@ -197,3 +197,71 @@ func normalizePack(pack packer.PackInfo) packer.PackInfo {
 	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
 	return pack
 }
+
+
+func (ds *dataStore) CompactPacks(packChunks map[uint64][]packer.ChunkInfo) error {
+	if err := os.MkdirAll(ds.compactDir(), 0775); err != nil {
+		return fmt.Errorf("creating compact dir: %w", err)
+	}
+
+	var newPack []packer.ChunkInfo
+	newPack = ds.fillNewPack(packChunks)
+	if newPack == nil {
+		return nil
+	}
+
+	// create new pack
+
+	return nil
+}
+
+// if it returns nil, it means there were not enough chunks to make a new pack
+func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfo) []packer.ChunkInfo {
+
+	var newPack []packer.ChunkInfo
+	newPackSize := int64(headerLen)
+
+	var chunksAdded int
+
+	var newPackFilled bool
+
+	for packID, chunks := range packChunks {
+
+		for _, chunk := range chunks {
+
+			size64 := int64(chunk.SizeBytes)
+			if newPackSize+size64+prefixLen > ds.maxPackSize {
+				newPackFilled = true
+				break
+			}
+
+			newPackSize += size64+prefixLen
+
+			newChunk := packer.ChunkInfo{
+				PackID: packID,
+				Offset: uint64(newPackSize),
+				SizeBytes: chunk.SizeBytes,
+			}
+
+			newPack = append(newPack, newChunk)
+			chunksAdded++
+		}
+
+		if chunksAdded == len(chunks) {
+			delete(packChunks, packID)
+			chunksAdded = 0
+		} else {
+			packChunks[packID] = chunks[chunksAdded-1:]
+		}
+
+		if newPackFilled {
+			break
+		}
+	}
+
+	if !newPackFilled {
+		return nil
+	}
+
+	return newPack
+}
