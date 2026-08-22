@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 
-	"go.pabu.dev/bytesize"
 	"go.pabu.dev/packer"
 )
 
@@ -46,14 +45,7 @@ func (c *PackInfoCmd) Run(ctx *Context) (err error) {
 			continue
 		}
 
-		var ts string
-		if c.Human {
-			ts = fmt.Sprintf("% 6s", bytesize.FormatIEC(info.ChunkTotalSize))
-		} else {
-			ts = fmt.Sprintf("% 10d", info.ChunkTotalSize)
-		}
-
-		fmt.Printf("packID: % 4d, chunks: % 4d, totalSize: %s\n", packID, info.ChunkCount, ts)
+		printPackInfo(packID, info, c.Human)
 	}
 
 	return nil

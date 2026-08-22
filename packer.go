@@ -93,3 +93,13 @@ func (p *Packager) Compact() error {
 	p.dataStore.FilterCompactable(packs)
 	return nil
 }
+
+// Returns the packs that would be compacted by Compact()
+func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
+	packs, err := p.metadataStore.PackInfoAll()
+	if err != nil {
+		return nil, fmt.Errorf("getting all packs: %w", err)
+	}
+	p.dataStore.FilterCompactable(packs)
+	return packs, nil
+}
