@@ -75,12 +75,21 @@ func (p *Packager) Chunks(packIDs []uint64) ([]ChunkInfo, error) {
 func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
 	packs, err := p.metadataStore.PackInfo(packIDs)
 	if err != nil { return nil, err }
-	p.dataStore.NormalizePackInfo(packs)
+	p.dataStore.NormalizePacks(packs)
 	return packs, nil
 }
 func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil { return nil, err }
-	p.dataStore.NormalizePackInfo(packs)
+	p.dataStore.NormalizePacks(packs)
 	return packs, nil
+}
+
+func (p *Packager) Compact() error {
+	packs, err := p.metadataStore.PackInfoAll()
+	if err != nil {
+		return fmt.Errorf("getting all packs: %w", err)
+	}
+	p.dataStore.FilterCompactable(packs)
+	return nil
 }

@@ -13,6 +13,7 @@ method can be called:
 - ReclaimSpace
 - GarbageCollect
 - Deflate
+- Compact
 
 packer has a method that accepts 0 args and returns a struct with GC info and an error
 the info can be:

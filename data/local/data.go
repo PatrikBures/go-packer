@@ -23,6 +23,7 @@ type dataStore struct {
 	currentPackOffset atomic.Int64
 	currentPackLock   *flock.Flock
 
+	compactPackThreshold int64
 	maxPackSize int64
 	growBuf     bool
 
@@ -41,6 +42,13 @@ func WithMaxPackSize(bytes int64) Option {
 		ds.maxPackSize = max(minPackSize, bytes)
 	}
 }
+
+func WithCompactPackThreshold(bytes int64) Option {
+	return func(ds *dataStore) {
+		ds.compactPackThreshold = bytes
+	}
+}
+
 // instead of returning and error when getting a chunk
 // if the chunk won't fit in the buf, grow the buf.
 func WithGrowBuf(b bool) Option {
@@ -64,6 +72,10 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 
 	for _, opt := range opts {
 		opt(&ds)
+	}
+
+	if ds.compactPackThreshold <= 0 {
+		ds.compactPackThreshold = ds.maxPackSize >> 1 + ds.maxPackSize >> 2
 	}
 	
 	if _, err := ds.openPackWrite(); err != nil {
@@ -160,9 +172,28 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 }
 
 
-func (ds *dataStore) NormalizePackInfo(packs map[uint64]packer.PackInfo) {
+func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 	for k, v := range packs {
-		v.ChunkTotalSize += headerLen + (v.ChunkCount * prefixLen)
-		packs[k] = v
+		packs[k] = normalizePack(v)
 	}
+}
+
+func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) {
+	for packID, info := range packs {
+		np := normalizePack(info)
+		if !ds.shouldCompact(np) {
+			delete(packs, packID)
+		} else {
+			packs[packID] = np
+		}
+	}
+}
+
+func (ds *dataStore) shouldCompact(pack packer.PackInfo) bool {
+	return pack.ChunkTotalSize < uint64(ds.compactPackThreshold)
+}
+
+func normalizePack(pack packer.PackInfo) packer.PackInfo {
+	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
+	return pack
 }
