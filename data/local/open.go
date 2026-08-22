@@ -127,10 +127,13 @@ func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 
 func initPack(packID uint64, f *os.File) error {
 	h := header{
-		magic:   defaultHeaderMagic,
-		version: 1,
-		packID:  packID,
+		Magic:   defaultHeaderMagic,
+		MajorVersion: majorVersion,
+		MinorVersion: minorVersion,
+		PackID:  packID,
+		HeaderSize: headerLen,
+		State: stateActive,
 	}
-	_, err := f.Write(h.Bytes())
+	_, err := h.WriteTo(f)
 	return err
 }
