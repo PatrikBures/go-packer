@@ -186,28 +186,6 @@ func (ms *metadataStore) Delete(id []byte) error {
 	})
 }
 
-func (ms *metadataStore) Packs() ([]uint64, error) {
-	var packs []uint64
-
-	if err := ms.db.View(func(tx *bolt.Tx) error {
-		bp := tx.Bucket(bucketPacks)
-		if bp == nil {
-			return ErrBucketNotFound
-		}
-
-		_ = bp.ForEach(func(k, v []byte) error {
-			packs = append(packs, binary.LittleEndian.Uint64(k))
-			return nil
-		})
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	
-	return packs, nil
-}
-
 func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 	buf := ms.getPool()
 	defer ms.putPool(buf)
