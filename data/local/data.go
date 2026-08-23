@@ -97,7 +97,6 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	}
 
 	size64 := int64(len(data))
-	sizeU32 := uint32(len(data))
 
 	offset := ds.currentPackOffset.Add(size64) - size64
 
@@ -109,20 +108,30 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		offset = newOffset
 	}
 
-	sizeBytes := make([]byte, prefixLen)
-	binary.LittleEndian.PutUint32(sizeBytes, sizeU32)
+	return ds.put(ds.currentPackID, data, ds.currentPackFile, offset)
+}
+
+func (ds *dataStore) put(packID uint64, data []byte, f *os.File, offset int64) (packer.ChunkInfo, error) {
+	if len(data) > math.MaxUint32 {
+		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
+	}
+
+	sizeU32 := uint32(len(data))
+
+	var prefixBytes [prefixLen]byte
+	binary.LittleEndian.PutUint32(prefixBytes[:], sizeU32)
 
 	// write size prefix
-	if _, err := ds.currentPackFile.WriteAt(sizeBytes, offset); err != nil {
+	if _, err := f.WriteAt(prefixBytes[:], offset); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing size: %w", err)
 	}
-	// write the data
-	if _, err := ds.currentPackFile.WriteAt(data, offset+prefixLen); err != nil {
+	// write data
+	if _, err := f.WriteAt(data, offset+prefixLen); err != nil {
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 
 	return packer.ChunkInfo{
-		PackID:    ds.currentPackID,
+		PackID:    packID,
 		Offset:    uint64(offset - headerLen),
 		SizeBytes: sizeU32,
 	}, nil
@@ -130,7 +139,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 // reads chunk into buf, returning the slice containing the chunk
 //
-// buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
+// if !growBuf, then buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
 	expectedReadBytesI := int(ci.SizeBytes) + prefixLen
@@ -162,7 +171,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	size := binary.LittleEndian.Uint32(sizeBytes)
 
 	if size != ci.SizeBytes {
-		return nil, fmt.Errorf("expected size prefix to be %d, received %d", ci.SizeBytes, size)
+		return nil, fmt.Errorf("packID: %d, offset: %d, expected size prefix to be %d, received %d", ci.PackID, ci.Offset,  ci.SizeBytes, size)
 	}
 
 	data := buf[prefixLen:readBytes]
@@ -170,95 +179,16 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
-	for k, v := range packs {
-		packs[k] = normalizePack(v)
+
+// gets total size of a pack by reading its file size
+func (ds *dataStore) packSize(packID uint64) (int64, error) {
+	f, err := ds.openPackRead(packID)
+	if err != nil {
+		return 0, err
 	}
-}
-
-func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) {
-	for packID, info := range packs {
-		np := normalizePack(info)
-		if !ds.shouldCompact(np) {
-			delete(packs, packID)
-		} else {
-			packs[packID] = np
-		}
+	s, err := f.Stat()
+	if err != nil {
+		return 0, err
 	}
-}
-
-func (ds *dataStore) shouldCompact(pack packer.PackInfo) bool {
-	return pack.ChunkTotalSize < uint64(ds.compactPackThreshold)
-}
-
-func normalizePack(pack packer.PackInfo) packer.PackInfo {
-	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
-	return pack
-}
-
-func (ds *dataStore) CompactPacks(packChunks map[uint64][]packer.ChunkInfo) error {
-	if err := os.MkdirAll(ds.compactDir(), 0775); err != nil {
-		return fmt.Errorf("creating compact dir: %w", err)
-	}
-
-	var newPack []packer.ChunkInfo
-	newPack = ds.fillNewPack(packChunks)
-	if newPack == nil {
-		return nil
-	}
-
-	// create new pack
-
-	return nil
-}
-
-// if it returns nil, it means there were not enough chunks to make a new pack
-func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfo) []packer.ChunkInfo {
-
-	var newPack []packer.ChunkInfo
-	newPackSize := int64(headerLen)
-
-	var chunksAdded int
-
-	var newPackFilled bool
-
-	for packID, chunks := range packChunks {
-
-		for _, chunk := range chunks {
-
-			size64 := int64(chunk.SizeBytes)
-			if newPackSize+size64+prefixLen > ds.maxPackSize {
-				newPackFilled = true
-				break
-			}
-
-			newPackSize += size64 + prefixLen
-
-			newChunk := packer.ChunkInfo{
-				PackID:    packID,
-				Offset:    uint64(newPackSize),
-				SizeBytes: chunk.SizeBytes,
-			}
-
-			newPack = append(newPack, newChunk)
-			chunksAdded++
-		}
-
-		if chunksAdded == len(chunks) {
-			delete(packChunks, packID)
-			chunksAdded = 0
-		} else {
-			packChunks[packID] = chunks[chunksAdded-1:]
-		}
-
-		if newPackFilled {
-			break
-		}
-	}
-
-	if !newPackFilled {
-		return nil
-	}
-
-	return newPack
+	return s.Size(), nil
 }

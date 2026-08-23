@@ -24,6 +24,7 @@ var cli struct {
 	Chunks    ChunksCmd    `cmd:"" help:"get all chunks in packs"`
 	PackInfo  PackInfoCmd  `cmd:"" help:"get chunk info about packs"`
 	LsCompact LsCompactCmd `cmd:"" help:"list packs that would be compacted"`
+	Compact   CompactCmd   `cmd:"" help:"compact packs"`
 }
 
 func main() {

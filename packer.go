@@ -90,22 +90,52 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 }
 
 func (p *Packager) Compact() error {
+	packChunks, err := p.CompactablePacks()
+	if err != nil {
+		return err
+	}
+
+	totalCompInfo := CompactInfo{}
+	for {
+		chunks, compInfo, err := p.dataStore.CompactNextPack(packChunks)
+		if err != nil {
+			return err
+		}
+		if chunks == nil {
+			break
+		}
+		totalCompInfo.Merge(compInfo)
+	}
+
+	return nil
+}
+
+// Gets all packs with their chunks to be relocated to new packs. 
+// Should be passed to CompactNext in a loop
+func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfo, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
-		return fmt.Errorf("getting all packs: %w", err)
+		return nil, fmt.Errorf("getting all packs: %w", err)
 	}
 	p.dataStore.FilterCompactable(packs)
 
 	if len(packs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	_, err = p.metadataStore.ChunksForPacks(packs)
+	packChunks, err := p.metadataStore.ChunksForPacks(packs)
 	if err != nil {
-		return fmt.Errorf("getting chunks for each pack: %w", err)
+		return nil, fmt.Errorf("getting chunks for each pack: %w", err)
 	}
+	return packChunks, nil
+}
 
-	return nil
+func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfo) (CompactInfo, error) {
+	_, compInfo, err := p.dataStore.CompactNextPack(packChunks)
+	if err != nil {
+		return CompactInfo{}, err
+	}
+	return compInfo, nil
 }
 
 // Returns the packs that would be compacted by Compact()

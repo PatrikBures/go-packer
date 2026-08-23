@@ -12,15 +12,18 @@ import (
 )
 
 // Opens the next pack.
-func (ds *dataStore) openPackWriteNext() (size int64, err error) {
-	packID := ds.currentPackID + 1
-	lock, err := ds.lockActive(packID)
+func (ds *dataStore) openPackWriteNext() (int64, error) {
+	lock, err := ds.lockActive(ds.currentPackID + 1)
+	if err != nil {
+		return 0, err
+	}
+
+	packID, err := packIdFromPath(lock.Path())
+	if err != nil {
+		return 0, err
+	}
+
 	return ds.createPack(packID, lock)
-}
-
-func (ds *dataStore) openPackCompact() (*os.File, error) {
-	return nil, nil
-
 }
 
 // Automatically opens the next snapshot.
@@ -84,12 +87,13 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 	}
 	size = stat.Size()
 	if size == 0 {
-		if err = initPack(packID, stateActive, f); err != nil {
+		if _, err = writePackHeader(packID, stateActive, f); err != nil {
 			return 0, fmt.Errorf("initializing pack: %w", err)
 		}
 		size = headerLen
 	}
 
+	// move previous open pack to completed
 	if ds.currentPackLock != nil {
 		p := ds.completedPackPath(ds.currentPackID)
 		if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
@@ -122,6 +126,8 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 	return size, nil
 }
 
+
+// Gets file from cache. if it's not cached then opens the file and puts in cache.
 func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	if packID == ds.currentPackID {
 		return ds.currentPackFile, nil
@@ -140,7 +146,7 @@ func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	return f, nil
 }
 
-func initPack(packID uint64, state headerState, f *os.File) error {
+func writePackHeader(packID uint64, state headerState, f *os.File) (header, error) {
 	h := header{
 		Magic:        defaultHeaderMagic,
 		MajorVersion: majorVersion,
@@ -150,5 +156,5 @@ func initPack(packID uint64, state headerState, f *os.File) error {
 		State:        state,
 	}
 	_, err := h.WriteTo(f)
-	return err
+	return h, err
 }

@@ -9,6 +9,24 @@ type DataStore interface {
 	NormalizePacks(packs map[uint64]PackInfo)
 	// also normalizes
 	FilterCompactable(packs map[uint64]PackInfo)
-	CompactPacks(packs map[uint64][]ChunkInfo) error
+	CompactNextPack(packs map[uint64][]ChunkInfo) ([]ChunkInfo, CompactInfo, error)
 	Close() error
 }
+
+
+type CompactInfo struct {
+	PackBytesRemoved int64
+	PackBytesAdded   int64
+	PacksRemoved     int
+	PacksCreated     int
+	ChunksMoved      int
+}
+
+func (c *CompactInfo) Merge(other CompactInfo) {
+	c.PackBytesRemoved += other.PackBytesRemoved
+	c.PackBytesAdded   += other.PackBytesAdded
+	c.PacksRemoved     += other.PacksRemoved
+	c.PacksCreated     += other.PacksCreated
+	c.ChunksMoved      += other.ChunksMoved
+}
+

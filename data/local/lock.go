@@ -64,7 +64,8 @@ func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
 	return nil, nil
 }
 
-// packIDstart is the first id it will try to lock
+// packIDstart is the first id it will try to lock. 
+// Checks if pack already does not exist in completed.
 func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 	for i := packIDstart; i < packIDstart+100; i++ {
 
@@ -76,7 +77,15 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 		}
 
 		if locked {
-			return lock, nil
+			_, err := os.Stat(ds.completedPackPath(i))
+
+			// returns only if the completed pack path does not exist
+			if errors.Is(err, os.ErrNotExist) {
+				return lock, nil
+			} else if err != nil {
+				_ = lock.Close()
+				return nil, fmt.Errorf("stating completed: %w", err)
+			}
 		}
 
 		if err := lock.Close(); err != nil {
