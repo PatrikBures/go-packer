@@ -84,7 +84,7 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 	}
 	size = stat.Size()
 	if size == 0 {
-		if err = initPack(packID, f); err != nil {
+		if err = initPack(packID, stateActive, f); err != nil {
 			return 0, fmt.Errorf("initializing pack: %w", err)
 		}
 		size = headerLen
@@ -95,6 +95,20 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 		if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
 			return 0, fmt.Errorf("creating completed dir: %w", err)
 		}
+
+		var h header
+		if _, err := h.ReadFrom(ds.currentPackFile); err != nil {
+			return 0, err
+		}
+		// ensure header is written at start of file
+		if _, err := ds.currentPackFile.Seek(0, 0); err != nil {
+			return 0, err
+		}
+		h.State = stateCompleted
+		if _, err := h.WriteTo(ds.currentPackFile); err != nil {
+			return 0, err
+		}
+
 		if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
 			return 0, fmt.Errorf("renaming pack to completed: %w", err)
 		}
@@ -126,14 +140,14 @@ func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	return f, nil
 }
 
-func initPack(packID uint64, f *os.File) error {
+func initPack(packID uint64, state headerState, f *os.File) error {
 	h := header{
 		Magic:        defaultHeaderMagic,
 		MajorVersion: majorVersion,
 		MinorVersion: minorVersion,
 		PackID:       packID,
 		HeaderSize:   headerLen,
-		State:        stateActive,
+		State:        state,
 	}
 	_, err := h.WriteTo(f)
 	return err

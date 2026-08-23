@@ -162,7 +162,7 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	size := binary.LittleEndian.Uint32(sizeBytes)
 
 	if size != ci.SizeBytes {
-		return nil, fmt.Errorf("expected to size prefix to be %d, received %d", ci.SizeBytes, size)
+		return nil, fmt.Errorf("expected size prefix to be %d, received %d", ci.SizeBytes, size)
 	}
 
 	data := buf[prefixLen:readBytes]

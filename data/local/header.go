@@ -43,9 +43,9 @@ const (
 type headerState uint8
 
 const (
-	stateCompleted  headerState = 0
-	stateActive     headerState = 1
-	stateCompacting headerState = 2
+	stateCompleted  headerState = 1
+	stateActive     headerState = 2
+	stateCompacting headerState = 3
 )
 
 type headerFlags uint64
@@ -70,6 +70,7 @@ func (f *headerFlags) Toggle(flag headerFlags) {
 	*f ^= flag
 }
 
+// Writes header to writer. Updates the checksum.
 func (h *header) WriteTo(w io.Writer) (int64, error) {
 	var data [headerLen]byte
 	copy(data[ho0Magic:ho1MajorVersion], h.Magic[:])
@@ -86,10 +87,12 @@ func (h *header) WriteTo(w io.Writer) (int64, error) {
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], checksum)
 	h.Checksum = checksum
 
-	n, err := w.Write(data[:])
+	n, err := w.Write(data[:h.HeaderSize])
 	return int64(n), err
 }
 
+// Reads header from a reader, overwriting any existing values.
+// Verifies that the checksum matches the actual content, returning ErrHeaderChecksum if not.
 func (h *header) ReadFrom(r io.Reader) (int64, error) {
 	var data [headerLen]byte
 	readBytes, err := io.ReadFull(r, data[:])
