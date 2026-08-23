@@ -35,10 +35,9 @@ func normalizePack(pack packer.PackInfo) packer.PackInfo {
 }
 
 
-func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfo) (chunks []packer.ChunkInfo, compactInfo packer.CompactInfo, err error) {
+func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWithID) (chunks []packer.ChunkInfoWithID, compactInfo packer.CompactInfo, err error) {
 
-	var newPack []packer.ChunkInfo
-	newPack = ds.fillNewPack(packChunks)
+	newPack := ds.fillNewPack(packChunks)
 	if newPack == nil {
 		return
 	}
@@ -84,7 +83,7 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfo) (
 			buf = slices.Grow(buf, needed)
 		}
 
-		data, err := ds.Get(ci, buf)
+		data, err := ds.Get(ci.ChunkInfo, buf)
 		if err != nil {
 			return nil, packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
 		}
@@ -95,8 +94,9 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfo) (
 		if err != nil {
 			return nil, packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
 		}
+		ci.ChunkInfo = newCi
 		compactInfo.ChunksMoved++
-		chunks = append(chunks, newCi)
+		chunks = append(chunks, ci)
 	}
 
 	compactInfo.PackBytesAdded = offset
@@ -115,9 +115,9 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfo) (
 }
 
 // if it returns nil, it means there were not enough chunks to make a new pack
-func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfo) []packer.ChunkInfo {
+func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID) []packer.ChunkInfoWithID {
 
-	var newPack []packer.ChunkInfo
+	var newPack []packer.ChunkInfoWithID
 	offset := int64(headerLen)
 
 	var chunksAdded int

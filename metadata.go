@@ -14,7 +14,7 @@ type MetadataStore interface {
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
 	PackInfoAll() (map[uint64]PackInfo, error)
-	ChunksForPacks(packs map[uint64]PackInfo) (map[uint64][]ChunkInfo, error)
+	ChunksForPacks(packs map[uint64]PackInfo) (map[uint64][]ChunkInfoWithID, error)
 }
 
 const ChunkInfoSize = 20
@@ -23,6 +23,11 @@ type ChunkInfo struct {
 	PackID    uint64 // [0:8]
 	Offset    uint64 // [8:16]
 	SizeBytes uint32 // [16:20]
+}
+
+type ChunkInfoWithID struct {
+	ChunkInfo
+	Id []byte
 }
 
 type PackInfo struct {

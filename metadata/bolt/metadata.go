@@ -293,8 +293,8 @@ func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
 	return packInfos, nil
 }
 
-func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[uint64][]packer.ChunkInfo, error) {
-	packChunks := make(map[uint64][]packer.ChunkInfo)
+func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[uint64][]packer.ChunkInfoWithID, error) {
+	packChunks := make(map[uint64][]packer.ChunkInfoWithID)
 
 	return packChunks, ms.db.View(func(tx *bolt.Tx) error {
 		cb := tx.Bucket(bucketChunks)
@@ -313,7 +313,11 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[u
 			}
 
 			ci, _ := packer.BytesToChunkInfo(v)
-			packChunks[packID] = append(packChunks[packID], ci)
+			ciw := packer.ChunkInfoWithID{
+				ChunkInfo: ci,
+				Id: k,
+			}
+			packChunks[packID] = append(packChunks[packID], ciw)
 
 			return nil
 		})

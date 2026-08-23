@@ -112,7 +112,7 @@ func (p *Packager) Compact() error {
 
 // Gets all packs with their chunks to be relocated to new packs. 
 // Should be passed to CompactNext in a loop
-func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfo, error) {
+func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
@@ -130,7 +130,7 @@ func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfo, error) {
 	return packChunks, nil
 }
 
-func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfo) (CompactInfo, error) {
+func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfoWithID) (CompactInfo, error) {
 	_, compInfo, err := p.dataStore.CompactNextPack(packChunks)
 	if err != nil {
 		return CompactInfo{}, err

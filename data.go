@@ -9,7 +9,7 @@ type DataStore interface {
 	NormalizePacks(packs map[uint64]PackInfo)
 	// also normalizes
 	FilterCompactable(packs map[uint64]PackInfo)
-	CompactNextPack(packs map[uint64][]ChunkInfo) ([]ChunkInfo, CompactInfo, error)
+	CompactNextPack(packs map[uint64][]ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error)
 	Close() error
 }
 
