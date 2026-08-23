@@ -3,6 +3,7 @@ package local
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"go.pabu.dev/packer"
@@ -109,6 +110,18 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 	h.State = stateCompleted
 	if _, err = h.WriteTo(f); err != nil {
 		return nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
+	}
+
+	newPath := ds.completedPackPath(packID)
+	if err := os.MkdirAll(filepath.Dir(newPath), 0775); err != nil {
+		return nil, packer.CompactInfo{}, err
+	}
+
+	if err := os.Rename(lock.Path(), newPath); err != nil {
+		return nil, packer.CompactInfo{}, fmt.Errorf("renaming compacted pack to active: %w", err)
+	}
+	if err := lock.Unlock(); err != nil {
+		return nil, packer.CompactInfo{}, fmt.Errorf("unlocking: %w", err)
 	}
 
 	return

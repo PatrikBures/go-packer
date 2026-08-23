@@ -324,6 +324,26 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[u
 	})
 }
 
+func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
+	return ms.db.Update(func(tx *bolt.Tx) error {
+		cb := tx.Bucket(bucketChunks)
+		if cb == nil {
+			return ErrBucketNotFound
+		}
+
+		buf := ms.getPool()
+		defer ms.putPool(buf)
+
+		for _, ci := range chunks {
+			ci.ChunkInfo.PutBytes(buf)
+			if err := cb.Put(ci.Id, buf[:20]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (ms *metadataStore) version() (uint64, error) {
 	var version uint64
 	return version, ms.db.View(func(tx *bolt.Tx) error {

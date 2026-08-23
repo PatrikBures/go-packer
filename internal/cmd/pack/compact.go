@@ -18,13 +18,13 @@ func (c *CompactCmd) Run(ctx *Context) error {
 
 	for {
 		compInfo, err := ctx.packager.CompactNext(packChunks)
-		fmt.Printf("%+v\n", compInfo)
 		if err != nil {
 			return err
 		}
 		if compInfo.PacksCreated == 0 {
 			break
 		}
+		fmt.Printf("%+v\n", compInfo)
 	}
 
 	return nil

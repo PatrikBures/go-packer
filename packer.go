@@ -131,8 +131,11 @@ func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
 }
 
 func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfoWithID) (CompactInfo, error) {
-	_, compInfo, err := p.dataStore.CompactNextPack(packChunks)
+	chunks, compInfo, err := p.dataStore.CompactNextPack(packChunks)
 	if err != nil {
+		return CompactInfo{}, err
+	}
+	if err := p.metadataStore.UpdateChunks(chunks); err != nil {
 		return CompactInfo{}, err
 	}
 	return compInfo, nil
