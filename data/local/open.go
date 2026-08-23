@@ -9,14 +9,11 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-
-
 )
 
-
-// Opens the next pack. 
+// Opens the next pack.
 func (ds *dataStore) openPackWriteNext() (size int64, err error) {
-	packID := ds.currentPackID+1
+	packID := ds.currentPackID + 1
 	lock, err := ds.lockActive(packID)
 	return ds.createPack(packID, lock)
 }
@@ -26,13 +23,11 @@ func (ds *dataStore) openPackCompact() (*os.File, error) {
 
 }
 
-
-
-// Automatically opens the next snapshot. 
+// Automatically opens the next snapshot.
 //
 // if there already are snapshots in active, it picks the largest unlocked pack.
 //
-// if there are no active snapshots and there is a completed dir, 
+// if there are no active snapshots and there is a completed dir,
 // it finds the latest pack in completed and starts opening from that id +1.
 //
 // if there are no active and no completed packs, it starts opening packs from 0.
@@ -60,7 +55,9 @@ func (ds *dataStore) openPackWrite() (size int64, err error) {
 	}
 
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		err = errors.Join(err, lock.Close())
 	}()
 
@@ -111,7 +108,6 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 	return size, nil
 }
 
-
 func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	if packID == ds.currentPackID {
 		return ds.currentPackFile, nil
@@ -120,7 +116,7 @@ func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	if f != nil {
 		return f, nil
 	}
-	
+
 	f, err := os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
 	if err != nil {
 		return nil, err
@@ -130,15 +126,14 @@ func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
 	return f, nil
 }
 
-
 func initPack(packID uint64, f *os.File) error {
 	h := header{
-		Magic:   defaultHeaderMagic,
+		Magic:        defaultHeaderMagic,
 		MajorVersion: majorVersion,
 		MinorVersion: minorVersion,
-		PackID:  packID,
-		HeaderSize: headerLen,
-		State: stateActive,
+		PackID:       packID,
+		HeaderSize:   headerLen,
+		State:        stateActive,
 	}
 	_, err := h.WriteTo(f)
 	return err

@@ -8,22 +8,22 @@ import (
 )
 
 func TestHeaderBytes(t *testing.T) {
-	testData := []struct{
-		in header
+	testData := []struct {
+		in       header
 		writeErr error
-		readErr error
-	} {
+		readErr  error
+	}{
 		{
 			in: header{
-				Magic:   [4]byte{'P', 'A', 'C', 'K'},
+				Magic:        [4]byte{'P', 'A', 'C', 'K'},
 				MajorVersion: 1,
 				MinorVersion: 0,
-				PackID:  89,
-				State: stateCompacting,
-				HeaderSize: 128,
+				PackID:       89,
+				State:        stateCompacting,
+				HeaderSize:   128,
 			},
 			writeErr: nil,
-			readErr: nil,
+			readErr:  nil,
 		},
 		{
 			in: header{
@@ -33,7 +33,7 @@ func TestHeaderBytes(t *testing.T) {
 		},
 		{
 			in: header{
-				Magic:   defaultHeaderMagic,
+				Magic:        defaultHeaderMagic,
 				MajorVersion: 8932,
 				MinorVersion: 0,
 			},
@@ -41,7 +41,7 @@ func TestHeaderBytes(t *testing.T) {
 		},
 		{
 			in: header{
-				Magic:   defaultHeaderMagic,
+				Magic:        defaultHeaderMagic,
 				MajorVersion: 1,
 				MinorVersion: 10,
 			},
@@ -65,20 +65,18 @@ func TestHeaderBytes(t *testing.T) {
 				}
 			}
 
-
 		})
 	}
 }
 
-
 func TestHeaderChecksum(t *testing.T) {
 	hb := header{
-		Magic: defaultHeaderMagic,
+		Magic:        defaultHeaderMagic,
 		MajorVersion: 1,
 		MinorVersion: 0,
-		PackID: 4000,
-		State: stateCompleted,
-		HeaderSize: headerLen,
+		PackID:       4000,
+		State:        stateCompleted,
+		HeaderSize:   headerLen,
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, 128))
 	if _, err := hb.WriteTo(buf); err != nil {

@@ -24,13 +24,13 @@ type dataStore struct {
 	currentPackLock   *flock.Flock
 
 	compactPackThreshold int64
-	maxPackSize int64
-	growBuf     bool
+	maxPackSize          int64
+	growBuf              bool
 
 	packRead packread.PackRead
 }
 
-const minPackSize = 1024 << 10 // 1MiB
+const minPackSize = 1024 << 10     // 1MiB
 const defaultPackSize = 1024 << 16 // 64MiB
 type Option func(ds *dataStore)
 
@@ -65,9 +65,9 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 	}
 
 	ds := dataStore{
-		packDir:       packDir,
-		packRead:      packread.New(),
-		maxPackSize:   defaultPackSize,
+		packDir:     packDir,
+		packRead:    packread.New(),
+		maxPackSize: defaultPackSize,
 	}
 
 	for _, opt := range opts {
@@ -75,9 +75,9 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 	}
 
 	if ds.compactPackThreshold <= 0 {
-		ds.compactPackThreshold = ds.maxPackSize >> 1 + ds.maxPackSize >> 2
+		ds.compactPackThreshold = ds.maxPackSize>>1 + ds.maxPackSize>>2
 	}
-	
+
 	if _, err := ds.openPackWrite(); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,6 @@ func (ds *dataStore) Close() error {
 	ds.packRead.Close()
 	return ds.currentPackFile.Close()
 }
-
 
 func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 	if len(data) > math.MaxUint32 {
@@ -134,8 +133,8 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 // buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
-	expectedReadBytesI := int(ci.SizeBytes)+prefixLen
-	if len(buf) <  expectedReadBytesI {
+	expectedReadBytesI := int(ci.SizeBytes) + prefixLen
+	if len(buf) < expectedReadBytesI {
 		if !ds.growBuf {
 			return nil, errors.New("buf len is not big enough to contain the chunk")
 		}
@@ -171,7 +170,6 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	return data, nil
 }
 
-
 func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 	for k, v := range packs {
 		packs[k] = normalizePack(v)
@@ -197,7 +195,6 @@ func normalizePack(pack packer.PackInfo) packer.PackInfo {
 	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
 	return pack
 }
-
 
 func (ds *dataStore) CompactPacks(packChunks map[uint64][]packer.ChunkInfo) error {
 	if err := os.MkdirAll(ds.compactDir(), 0775); err != nil {
@@ -235,11 +232,11 @@ func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfo) []pac
 				break
 			}
 
-			newPackSize += size64+prefixLen
+			newPackSize += size64 + prefixLen
 
 			newChunk := packer.ChunkInfo{
-				PackID: packID,
-				Offset: uint64(newPackSize),
+				PackID:    packID,
+				Offset:    uint64(newPackSize),
 				SizeBytes: chunk.SizeBytes,
 			}
 

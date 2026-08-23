@@ -2,7 +2,6 @@ package main
 
 import "fmt"
 
-
 type ChunksCmd struct {
 	PackIDs []uint64 `arg:"" name:"packIDs"`
 }

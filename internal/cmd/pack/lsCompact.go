@@ -5,9 +5,8 @@ import (
 	"slices"
 )
 
-
 type LsCompactCmd struct {
-	Human   bool     `name:"human" short:"u" help:"Human readable sizes"`
+	Human bool `name:"human" short:"u" help:"Human readable sizes"`
 }
 
 func (c *LsCompactCmd) Run(ctx *Context) error {

@@ -7,7 +7,6 @@ import (
 	"go.pabu.dev/packer"
 )
 
-
 type PackInfoCmd struct {
 	PackIDs []uint64 `arg:"" optional:"" name:"packIDs"`
 	Human   bool     `name:"human" short:"u" help:"Human readable sizes"`

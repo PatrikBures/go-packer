@@ -12,7 +12,7 @@ import (
 )
 
 type metadataStore struct {
-	db *bolt.DB
+	db      *bolt.DB
 	bufPool sync.Pool
 }
 
@@ -60,7 +60,6 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 		if bp == nil {
 			return ErrBucketNotFound
 		}
-
 
 		buf := ms.getPool()
 		defer ms.putPool(buf)
@@ -176,7 +175,7 @@ func (ms *metadataStore) Delete(id []byte) error {
 
 		refs := binary.LittleEndian.Uint32(refsBytes)
 		newRefsBytes := buf[8:12]
-		binary.LittleEndian.PutUint32(newRefsBytes, refs -1)
+		binary.LittleEndian.PutUint32(newRefsBytes, refs-1)
 
 		if err := bp.Put(packIDBytes, newRefsBytes); err != nil {
 			return err
@@ -225,7 +224,6 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 	}
 	return chunks, nil
 }
-
 
 func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
 	buf := ms.getPool()

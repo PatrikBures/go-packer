@@ -126,7 +126,6 @@ func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, error) {
 		return nil, err
 	}
 
-
 	nextPackID := latestPackID + 1
 	fmt.Println("latestPackID:", latestPackID)
 	fmt.Println("nextPackID:", nextPackID)

@@ -8,7 +8,9 @@ import (
 )
 
 const headerLen = 128
+
 var defaultHeaderMagic = [4]byte{'P', 'A', 'C', 'K'}
+
 const majorVersion = 1
 const minorVersion = 0
 
@@ -17,28 +19,29 @@ type header struct {
 	MajorVersion uint16
 	MinorVersion uint16
 	PackID       uint64
-	Flags        headerFlags   // 8 bytes
-	State        headerState   // 1 byte
-	_            byte          // reserved for byte alignment
+	Flags        headerFlags // 8 bytes
+	State        headerState // 1 byte
+	_            byte        // reserved for byte alignment
 	HeaderSize   uint16
 	Checksum     uint32
-	_            [96]byte     // reserved for future features
+	_            [96]byte // reserved for future features
 }
 
 const (
-	ho0Magic            = 0
-	ho1MajorVersion     = 4
-	ho2MinorVersion     = 6
-	ho3PackID           = 8
-	ho4Flags            = 16
-	ho5State            = 24
-	ho6Reserved         = 25
-	ho7HeaderSize       = 26
-	ho8Checksum         = 28
-	ho9Reserved         = 32
+	ho0Magic        = 0
+	ho1MajorVersion = 4
+	ho2MinorVersion = 6
+	ho3PackID       = 8
+	ho4Flags        = 16
+	ho5State        = 24
+	ho6Reserved     = 25
+	ho7HeaderSize   = 26
+	ho8Checksum     = 28
+	ho9Reserved     = 32
 )
 
 type headerState uint8
+
 const (
 	stateCompleted  headerState = 0
 	stateActive     headerState = 1
@@ -46,6 +49,7 @@ const (
 )
 
 type headerFlags uint64
+
 // example how in the future to implement flags
 // const (
 // 	FlagCompressed headerFlags = 1 << iota
@@ -65,7 +69,6 @@ func (f *headerFlags) Remove(flag headerFlags) {
 func (f *headerFlags) Toggle(flag headerFlags) {
 	*f ^= flag
 }
-
 
 func (h *header) WriteTo(w io.Writer) (int64, error) {
 	var data [headerLen]byte
@@ -99,13 +102,13 @@ func (h *header) ReadFrom(r io.Reader) (int64, error) {
 
 	copy(h.Magic[:], data[ho0Magic:ho1MajorVersion])
 
-	h.MajorVersion     = binary.LittleEndian.Uint16(data[ho1MajorVersion:ho2MinorVersion])
-	h.MinorVersion     = binary.LittleEndian.Uint16(data[ho2MinorVersion:ho3PackID])
-	h.PackID           = binary.LittleEndian.Uint64(data[ho3PackID:ho4Flags])
-	h.Flags            = headerFlags(binary.LittleEndian.Uint64(data[ho4Flags:ho5State]))
-	h.State            = headerState(data[ho5State])
-	h.HeaderSize       = binary.LittleEndian.Uint16(data[ho7HeaderSize:ho8Checksum])
-	checksum           := binary.LittleEndian.Uint32(data[ho8Checksum:ho9Reserved])
+	h.MajorVersion = binary.LittleEndian.Uint16(data[ho1MajorVersion:ho2MinorVersion])
+	h.MinorVersion = binary.LittleEndian.Uint16(data[ho2MinorVersion:ho3PackID])
+	h.PackID = binary.LittleEndian.Uint64(data[ho3PackID:ho4Flags])
+	h.Flags = headerFlags(binary.LittleEndian.Uint64(data[ho4Flags:ho5State]))
+	h.State = headerState(data[ho5State])
+	h.HeaderSize = binary.LittleEndian.Uint16(data[ho7HeaderSize:ho8Checksum])
+	checksum := binary.LittleEndian.Uint32(data[ho8Checksum:ho9Reserved])
 
 	h.Checksum = 0
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], 0)
