@@ -10,7 +10,7 @@ import (
 const headerLen = 128
 var defaultHeaderMagic = [4]byte{'P', 'A', 'C', 'K'}
 const majorVersion = 1
-const minorVersion = 1
+const minorVersion = 0
 
 type header struct {
 	Magic        [4]byte
@@ -35,7 +35,7 @@ const (
 	ho6Reserved         = 25
 	ho7HeaderSize       = 26
 	ho8Checksum         = 28
-	ho9Reserved          = 32
+	ho9Reserved         = 32
 )
 
 type headerState uint8
