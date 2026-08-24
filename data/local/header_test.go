@@ -58,13 +58,12 @@ func TestHeaderBytes(t *testing.T) {
 			} else if td.writeErr == nil {
 				ha := header{}
 				if _, err := ha.ReadFrom(buf); !errors.Is(err, td.readErr) {
-					t.Errorf("ReadFrom received err = %v, expected %v", err, nil)
+					t.Fatalf("ReadFrom received err = %v, expected %v", err, nil)
 				}
 				if ha != td.in {
 					t.Errorf("header before does not match header after\nbefore: %+v\nafter: %+v", td.in, ha)
 				}
 			}
-
 		})
 	}
 }

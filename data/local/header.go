@@ -87,7 +87,7 @@ func (h *header) WriteTo(w io.Writer) (int64, error) {
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], checksum)
 	h.Checksum = checksum
 
-	n, err := w.Write(data[:h.HeaderSize])
+	n, err := w.Write(data[:])
 	return int64(n), err
 }
 
@@ -100,7 +100,7 @@ func (h *header) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	if readBytes != headerLen {
-		return 0, fmt.Errorf("reader did not have enough bytes for a header")
+		return 0, fmt.Errorf("reader did not have enough bytes for a header. received: %d, want: %d", readBytes, headerLen)
 	}
 
 	copy(h.Magic[:], data[ho0Magic:ho1MajorVersion])
