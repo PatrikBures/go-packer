@@ -111,19 +111,13 @@ func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
 }
 
 func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfoWithID) (CompactInfo, error) {
-	chunks, deletePacks, compInfo, err := p.dataStore.CompactNextPack(packChunks)
+	chunks, compInfo, err := p.dataStore.CompactNextPack(packChunks)
 	if err != nil {
 		return CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
 	}
 	if err := p.metadataStore.UpdateChunks(chunks); err != nil {
 		return CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunks), err)
 	}
-
-	bytesDeleted, err := p.dataStore.DeletePacks(deletePacks)
-	if err != nil {
-		return CompactInfo{}, fmt.Errorf("deleting %d packs: %w", len(deletePacks), err)
-	}
-	compInfo.PackBytesRemoved = bytesDeleted
 
 	return compInfo, nil
 }

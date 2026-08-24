@@ -127,17 +127,22 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 }
 
 // Gets file from cache. if it's not cached then opens the file and puts in cache.
-func (ds *dataStore) openPackRead(packID uint64) (*os.File, error) {
+func (ds *dataStore) openPackRead(packID uint64) (f *os.File, err error) {
 	if packID == ds.currentPackID {
 		return ds.currentPackFile, nil
 	}
-	f := ds.packRead.Get(packID)
+	f = ds.packRead.Get(packID)
 	if f != nil {
 		return f, nil
 	}
 
-	f, err := os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
-	if err != nil {
+	f, err = os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
+	if errors.Is(err, os.ErrNotExist) {
+		f, err = os.OpenFile(ds.activePackPath(packID), os.O_RDONLY, 0664)
+		if err != nil {
+			return nil, fmt.Errorf("opening active pack: %w", err)
+		}
+	} else if err != nil {
 		return nil, err
 	}
 	ds.packRead.Put(packID, f)

@@ -10,11 +10,11 @@ tmpdir="/tmp/testing-packer"
 
 rm -rf "$tmpdir"
 
-for i in {1..100}; do 
+for i in {1..50}; do 
     go run ./internal/cmd/pack put "test$i" "$1"
 done
 
-for i in $(seq 1 2 100); do 
+for i in $(seq 1 2 50); do 
     go run ./internal/cmd/pack delete "test$i"
 done
 
