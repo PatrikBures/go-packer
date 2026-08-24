@@ -35,12 +35,13 @@ func normalizePack(pack packer.PackInfo) packer.PackInfo {
 	return pack
 }
 
-func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWithID) (chunks []packer.ChunkInfoWithID, compactInfo packer.CompactInfo, err error) {
+func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWithID) (chunks []packer.ChunkInfoWithID, deletePacks []uint64, compactInfo packer.CompactInfo, err error) {
 
-	newPack := ds.fillNewPack(packChunks)
+	newPack, deletePacks := ds.fillNewPack(packChunks)
 	if newPack == nil {
 		return
 	}
+	compactInfo.PacksRemoved = len(deletePacks)
 
 	lock, err := ds.lockActive(ds.currentPackID + 1)
 	if err != nil {
@@ -48,10 +49,14 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 		return
 	}
 	defer func() {
-		if err == nil {
+		if err != nil {
+			_ = lock.Close()
 			return
 		}
-		_ = lock.Close()
+		err = lock.Unlock()
+		if err != nil {
+			err = fmt.Errorf("unlocking pack: %w", err)
+		}
 	}()
 
 	packID, err := packIdFromPath(lock.Path())
@@ -65,11 +70,18 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 		return
 	}
 	defer func() {
-		if err == nil {
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(lock.Path())
+		}
+
+		err = f.Sync()
+		if err != nil {
+			_ = f.Close()
 			return
 		}
-		_ = f.Close()
-		_ = os.Remove(lock.Path())
+
+		err = f.Close()
 	}()
 
 	h, err := writePackHeader(packID, stateCompacting, f)
@@ -89,14 +101,14 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 
 		data, err := ds.Get(ci.ChunkInfo, buf)
 		if err != nil {
-			return nil, packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
+			return nil, nil, packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
 		}
 
 		offset += int64(totalSize)
 
 		newCi, err := ds.put(packID, data, f, offset)
 		if err != nil {
-			return nil, packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
+			return nil, nil, packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
 		}
 		ci.ChunkInfo = newCi
 		compactInfo.ChunksMoved++
@@ -106,34 +118,31 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 	compactInfo.PackBytesAdded = offset
 	compactInfo.PacksCreated = 1
 
+	// ensure header is written to start of file
 	if _, err = f.Seek(0, 0); err != nil {
-		return nil, packer.CompactInfo{}, fmt.Errorf("seeking to start of pack: %w", err)
+		return nil, nil, packer.CompactInfo{}, fmt.Errorf("seeking to start of pack: %w", err)
 	}
 
 	h.State = stateCompleted
 	if _, err = h.WriteTo(f); err != nil {
-		return nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
+		return nil, nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
 	}
 
 	newPath := ds.completedPackPath(packID)
 	if err := os.MkdirAll(filepath.Dir(newPath), 0775); err != nil {
-		return nil, packer.CompactInfo{}, err
+		return nil, nil, packer.CompactInfo{}, err
 	}
 
 	if err := os.Rename(lock.Path(), newPath); err != nil {
-		return nil, packer.CompactInfo{}, fmt.Errorf("renaming compacted pack to active: %w", err)
-	}
-	if err := lock.Unlock(); err != nil {
-		return nil, packer.CompactInfo{}, fmt.Errorf("unlocking: %w", err)
+		return nil, nil, packer.CompactInfo{}, fmt.Errorf("renaming compacted pack to active: %w", err)
 	}
 
 	return
 }
 
 // if it returns nil, it means there were not enough chunks to make a new pack
-func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID) []packer.ChunkInfoWithID {
+func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID) (newPack []packer.ChunkInfoWithID, deletePacks[]uint64) {
 
-	var newPack []packer.ChunkInfoWithID
 	offset := int64(headerLen)
 
 	var chunksAdded int
@@ -158,6 +167,7 @@ func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID)
 		if chunksAdded == len(chunks) {
 			delete(packChunks, packID)
 			chunksAdded = 0
+			deletePacks = append(deletePacks, packID)
 		} else if chunksAdded >= 1 {
 			packChunks[packID] = chunks[chunksAdded-1:]
 		}
@@ -168,8 +178,8 @@ func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID)
 	}
 
 	if !newPackFilled {
-		return nil
+		return nil, nil
 	}
 
-	return newPack
+	return
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"go.pabu.dev/packer"
 )
 
 type CompactCmd struct{}
@@ -16,6 +18,7 @@ func (c *CompactCmd) Run(ctx *Context) error {
 	}
 	fmt.Printf("can compact from %d packs\n", len(packChunks))
 
+	var compInfoAll packer.CompactInfo
 	for {
 		compInfo, err := ctx.packager.CompactNext(packChunks)
 		if err != nil {
@@ -24,8 +27,11 @@ func (c *CompactCmd) Run(ctx *Context) error {
 		if compInfo.PacksCreated == 0 {
 			break
 		}
+		compInfoAll.Merge(compInfo)
+
 		fmt.Printf("%+v\n", compInfo)
 	}
 
+	fmt.Printf("%+v\n", compInfoAll)
 	return nil
 }

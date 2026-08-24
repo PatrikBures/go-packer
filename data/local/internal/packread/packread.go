@@ -69,6 +69,35 @@ func (pr *PackRead) CloseOlderThan(dur time.Duration) {
 	}
 }
 
+// Close specific pack, returns nil if it does not exist.
+func (pr *PackRead) ClosePack(packID uint64) error {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	p, ok := pr.packs[packID]
+	if !ok {
+		return nil
+	}
+	delete(pr.packs, packID)
+
+	return p.file.Close()
+}
+
+// Removes pack from cache and returns the removed pack file.
+// If provided packID does not exist, os.File is nil.
+func (pr *PackRead) GetRemovePack(packID uint64) *os.File {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	p, ok := pr.packs[packID]
+	if !ok {
+		return nil
+	}
+	delete(pr.packs, packID)
+
+	return p.file
+}
+
 // Removes and closes every cached file.
 func (pr *PackRead) Close() {
 	pr.mu.Lock()

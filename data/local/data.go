@@ -179,15 +179,48 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	return data, nil
 }
 
-// gets total size of a pack by reading its file size
-func (ds *dataStore) packSize(packID uint64) (int64, error) {
-	f, err := ds.openPackRead(packID)
-	if err != nil {
-		return 0, err
+// Ignores deletion of any active packs
+func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error) {
+	for _, packID := range packs {
+
+		var stat os.FileInfo
+
+		if f := ds.packRead.GetRemovePack(packID); f != nil {
+			// removes pack from cache and getting its stat
+
+			stat, err = f.Stat()
+			if err != nil {
+				return bytesRemoved, fmt.Errorf("stating cached pack: %w", err)
+			}
+
+			_ = f.Close()
+		} else {
+			// stats file, continuing if it exists in active
+
+			stat, err = os.Stat(ds.completedPackPath(packID))
+			if errors.Is(err, os.ErrNotExist) {
+				if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
+					continue
+				}
+			}
+			if err != nil {
+				return bytesRemoved, fmt.Errorf("stating pack: %w", err)
+			}
+		}
+		size := stat.Size()
+
+		err = os.Remove(ds.completedPackPath(packID))
+		if errors.Is(err, os.ErrNotExist) {
+			if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
+				continue
+			}
+		}	
+		if err != nil {
+			return bytesRemoved, fmt.Errorf("removing file pack: %w", err)
+		}
+
+		bytesRemoved += size
 	}
-	s, err := f.Stat()
-	if err != nil {
-		return 0, err
-	}
-	return s.Size(), nil
+	return bytesRemoved, nil
 }
+

@@ -46,7 +46,7 @@ func (ms *metadataStore) getPool() []byte {
 	return ms.bufPool.Get().([]byte)
 }
 func (ms *metadataStore) putPool(buf []byte) {
-	ms.bufPool.Put(&buf)
+	ms.bufPool.Put(buf)
 }
 
 func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
