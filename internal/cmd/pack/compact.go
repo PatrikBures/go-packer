@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type CompactCmd struct {}
+type CompactCmd struct{}
 
 func (c *CompactCmd) Run(ctx *Context) error {
 	packChunks, err := ctx.packager.CompactablePacks()

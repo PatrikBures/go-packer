@@ -171,14 +171,13 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	size := binary.LittleEndian.Uint32(sizeBytes)
 
 	if size != ci.SizeBytes {
-		return nil, fmt.Errorf("packID: %d, offset: %d, expected size prefix to be %d, received %d", ci.PackID, ci.Offset,  ci.SizeBytes, size)
+		return nil, fmt.Errorf("packID: %d, offset: %d, expected size prefix to be %d, received %d", ci.PackID, ci.Offset, ci.SizeBytes, size)
 	}
 
 	data := buf[prefixLen:readBytes]
 
 	return data, nil
 }
-
 
 // gets total size of a pack by reading its file size
 func (ds *dataStore) packSize(packID uint64) (int64, error) {

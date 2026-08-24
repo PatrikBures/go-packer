@@ -64,7 +64,7 @@ func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
 	return nil, nil
 }
 
-// packIDstart is the first id it will try to lock. 
+// packIDstart is the first id it will try to lock.
 // Checks if pack already does not exist in completed.
 func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 	for i := packIDstart; i < packIDstart+100; i++ {

@@ -13,7 +13,6 @@ type DataStore interface {
 	Close() error
 }
 
-
 type CompactInfo struct {
 	PackBytesRemoved int64
 	PackBytesAdded   int64
@@ -24,9 +23,8 @@ type CompactInfo struct {
 
 func (c *CompactInfo) Merge(other CompactInfo) {
 	c.PackBytesRemoved += other.PackBytesRemoved
-	c.PackBytesAdded   += other.PackBytesAdded
-	c.PacksRemoved     += other.PacksRemoved
-	c.PacksCreated     += other.PacksCreated
-	c.ChunksMoved      += other.ChunksMoved
+	c.PackBytesAdded += other.PackBytesAdded
+	c.PacksRemoved += other.PacksRemoved
+	c.PacksCreated += other.PacksCreated
+	c.ChunksMoved += other.ChunksMoved
 }
-

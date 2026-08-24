@@ -35,7 +35,6 @@ func normalizePack(pack packer.PackInfo) packer.PackInfo {
 	return pack
 }
 
-
 func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWithID) (chunks []packer.ChunkInfoWithID, compactInfo packer.CompactInfo, err error) {
 
 	newPack := ds.fillNewPack(packChunks)
@@ -49,7 +48,9 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 		return
 	}
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = lock.Close()
 	}()
 
@@ -64,7 +65,9 @@ func (ds *dataStore) CompactNextPack(packChunks map[uint64][]packer.ChunkInfoWit
 		return
 	}
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = f.Close()
 		_ = os.Remove(lock.Path())
 	}()
@@ -148,7 +151,7 @@ func (ds *dataStore) fillNewPack(packChunks map[uint64][]packer.ChunkInfoWithID)
 			}
 
 			newPack = append(newPack, ci)
-			offset += size64+prefixLen
+			offset += size64 + prefixLen
 			chunksAdded++
 		}
 

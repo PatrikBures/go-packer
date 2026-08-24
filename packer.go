@@ -110,7 +110,7 @@ func (p *Packager) Compact() error {
 	return nil
 }
 
-// Gets all packs with their chunks to be relocated to new packs. 
+// Gets all packs with their chunks to be relocated to new packs.
 // Should be passed to CompactNext in a loop
 func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
