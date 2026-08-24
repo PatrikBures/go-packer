@@ -199,6 +199,9 @@ func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
 		}
 
 		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 
 		files = append(files, fileItem{
 			name: info.Name(),

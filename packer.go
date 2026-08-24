@@ -54,7 +54,7 @@ func (p *Packager) Get(id []byte) ([]byte, error) {
 	}
 
 	buf := p.pool.Get().([]byte)
-	defer p.pool.Put(buf)
+	defer p.pool.Put(&buf)
 
 	data, err := p.dataStore.Get(ci, buf)
 	if err != nil {

@@ -46,7 +46,7 @@ func (ms *metadataStore) getPool() []byte {
 	return ms.bufPool.Get().([]byte)
 }
 func (ms *metadataStore) putPool(buf []byte) {
-	ms.bufPool.Put(buf)
+	ms.bufPool.Put(&buf)
 }
 
 func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
@@ -199,7 +199,7 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 			return ErrBucketNotFound
 		}
 
-		cb.ForEach(func(k, v []byte) error {
+		return cb.ForEach(func(k, v []byte) error {
 			if len(v) < packer.ChunkInfoSize {
 				return nil
 			}
@@ -217,8 +217,6 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 			chunks = append(chunks, ci)
 			return nil
 		})
-
-		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -335,7 +333,7 @@ func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
 		defer ms.putPool(buf)
 
 		for _, ci := range chunks {
-			ci.ChunkInfo.PutBytes(buf)
+			ci.PutBytes(buf)
 			if err := cb.Put(ci.Id, buf[:20]); err != nil {
 				return err
 			}

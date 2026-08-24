@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	bolt "go.etcd.io/bbolt"
-	"go.pabu.dev/packer"
 )
 
 func TestInit(t *testing.T) {
@@ -37,8 +36,7 @@ func TestInit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var packerMs packer.MetadataStore
-	packerMs = ms
+	packerMs := ms
 
 	if err := packerMs.Close(); err != nil {
 		t.Fatal(err)

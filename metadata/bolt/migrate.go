@@ -17,7 +17,7 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 	}
 
 	var currentVersion uint64
-	db.View(func(tx *bolt.Tx) error {
+	if err := db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(bucketVersion)
 		if bucket == nil {
 			return ErrBucketNotFound
@@ -27,7 +27,9 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 			currentVersion = binary.LittleEndian.Uint64(v)
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	if currentVersion == uint64(len(migrations)) {
 		return nil
@@ -54,7 +56,9 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 
 			buf := make([]byte, 8)
 			binary.LittleEndian.PutUint64(buf, i+1)
-			versionBucket.Put(keyVersion, buf)
+			if err := versionBucket.Put(keyVersion, buf); err != nil {
+				return err
+			}
 
 			return m(tx)
 		}); err != nil {
