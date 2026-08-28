@@ -13,12 +13,7 @@ import (
 
 // Opens the next pack.
 func (ds *dataStore) openPackWriteNext() (int64, error) {
-	lock, err := ds.lockActive(ds.nextPackID.Load())
-	if err != nil {
-		return 0, err
-	}
-
-	packID, err := packIdFromPath(lock.Path())
+	lock, packID, err := ds.lockActive(ds.nextPackID.Load())
 	if err != nil {
 		return 0, err
 	}
@@ -40,11 +35,12 @@ func (ds *dataStore) openPackWrite() (size int64, err error) {
 	}
 
 	var lock *flock.Flock
+	var packID uint64
 	for range 5 {
 		var err error
 		time.Sleep(time.Millisecond * time.Duration(rand.Int64N(50)))
 
-		lock, err = ds.tryGetLockOfPack()
+		lock, packID, err = ds.tryGetLockOfPack()
 		if err != nil {
 			return 0, fmt.Errorf("getting lock on pack: %w", err)
 		}
@@ -63,12 +59,6 @@ func (ds *dataStore) openPackWrite() (size int64, err error) {
 		}
 		err = errors.Join(err, lock.Close())
 	}()
-
-	p := lock.Path()
-	packID, err := packIdFromPath(p)
-	if err != nil {
-		return 0, fmt.Errorf("getting pack from path: %w", err)
-	}
 
 	return ds.createPack(packID, lock)
 }

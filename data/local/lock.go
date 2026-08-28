@@ -11,121 +11,126 @@ import (
 	"github.com/gofrs/flock"
 )
 
-func (ds *dataStore) tryGetLockOfPack() (*flock.Flock, error) {
+func (ds *dataStore) tryGetLockOfPack() (*flock.Flock, uint64, error) {
 	// there is a pack in active dir
-	lock, err := ds.lockLargestPack()
+	lock, packID, err := ds.lockLargestPack()
 	if err != nil {
-		return nil, fmt.Errorf("locking largest pack: %w", err)
+		return nil, 0, fmt.Errorf("locking largest pack: %w", err)
 	}
 	if lock != nil {
-		return lock, nil
+		return lock, packID, nil
 	}
 
 	// completed dir does not exist
-	lock, err = ds.lockNoComplete()
+	lock, packID, err = ds.lockNoComplete()
 	if err != nil {
-		return nil, fmt.Errorf("locking with no complete dir: %w", err)
+		return nil, 0, fmt.Errorf("locking with no complete dir: %w", err)
 	}
 	if lock != nil {
-		return lock, nil
+		return lock, packID, nil
 	}
 
 	// completed dir exists
-	lock, err = ds.lockLatestFromComplete()
+	lock, packID, err = ds.lockLatestFromComplete()
 	if err != nil {
-		return nil, fmt.Errorf("locking from latest pack: %w", err)
+		return nil, 0, fmt.Errorf("locking from latest pack: %w", err)
 	}
 	if lock != nil {
-		return lock, nil
+		return lock, packID, nil
 	}
 
-	return nil, nil
+	return nil, 0, nil
 }
 
 // acquires lock if complete dir does not exist
-func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
+func (ds *dataStore) lockNoComplete() (*flock.Flock, uint64, error) {
 
 	stat, err := os.Stat(ds.completedDir())
 	if errors.Is(err, os.ErrNotExist) {
-		lock, err := ds.lockActive(0)
+		lock, packID, err := ds.lockActive(0)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if lock != nil {
-			return lock, nil
+			return lock, packID, nil
 		}
 	} else if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if !stat.IsDir() {
-		return nil, fmt.Errorf("active dir is not a dir")
+		return nil, 0, fmt.Errorf("active dir is not a dir")
 	}
 
-	return nil, nil
+	return nil, 0, nil
 }
 
 // packIDstart is the first id it will try to lock.
 // Checks if pack already does not exist in completed.
-func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
-	var packID uint64
-	for packID = packIDstart; packID < packIDstart+100; packID++ {
+func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error) {
+	for packID := packIDstart; packID < packIDstart+100; packID++ {
 		_, err := os.Stat(ds.completedPackPath(packID))
 		if err == nil {
 			continue
 		}
 		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("checking if pack already exists in completed: %w", err)
+			return nil, 0, fmt.Errorf("checking if pack already exists in completed: %w", err)
 		}
 
 		lock := flock.New(ds.activePackPath(packID))
 
 		locked, err := lock.TryLock()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
-		if locked {
-			_, err := os.Stat(ds.completedPackPath(packID))
-
-			// returns only if the completed pack path does not exist
-			// it is checking again because it could happen that between checking the first
-			// time and locking that it got created by another instance/goroutine
-			if errors.Is(err, os.ErrNotExist) {
-				return lock, nil
-			} else if err != nil {
-				_ = lock.Close()
-				_ = os.Remove(lock.Path())
-				return nil, fmt.Errorf("stating completed: %w", err)
-			}
-			if err := os.Remove(lock.Path()); err != nil {
-				return nil, fmt.Errorf("removing active file after finding out it already exists in completed: %w", err)
-			}
+		// if it did not manage to lock, try next id
+		if !locked {
 			if err := lock.Close(); err != nil {
-				return nil, fmt.Errorf("unlocking active file after finding out it already exists in completed: %w", err)
+				return nil, 0, err
 			}
+			continue
 		}
 
+		_, err = os.Stat(ds.completedPackPath(packID))
+
+		// returns only if the completed pack path does not exist
+		// it is checking again because it could happen that between checking the first
+		// time and locking that it got created in completed by another instance/goroutine
+		if errors.Is(err, os.ErrNotExist) {
+
+			// increases nextPackID only if it is higher than the previous one
+			for {
+				curr := ds.nextPackID.Load()
+				if packID <= curr {
+					break
+				}
+				if ds.nextPackID.CompareAndSwap(curr, packID+1) {
+					break
+				}
+			}
+
+			return lock, packID, nil
+
+		} else if err != nil {
+			_ = lock.Close()
+			_ = os.Remove(lock.Path())
+			return nil, 0, fmt.Errorf("stating completed: %w", err)
+		}
+
+		// clean up the created file in active
+		if err := os.Remove(lock.Path()); err != nil {
+			return nil, 0, fmt.Errorf("removing active file after finding out it already exists in completed: %w", err)
+		}
 		if err := lock.Close(); err != nil {
-			return nil, err
+			return nil, 0, fmt.Errorf("unlocking active file after finding out it already exists in completed: %w", err)
 		}
 	}
 
-	// increases nextPackID only if it is higher than the previous one
-	for {
-		curr := ds.nextPackID.Load()
-		if packID <= curr {
-			break
-		}
-		if ds.nextPackID.CompareAndSwap(curr, packID+1) {
-			break
-		}
-	}
-
-	return nil, ErrLimitMaxActive
+	return nil, 0, ErrLimitMaxActive
 }
 
 // finds the latest pack in completed dir, and tries to lock any id starting from that
-func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, error) {
+func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, uint64, error) {
 	var latestDir string
 	if err := filepath.WalkDir(ds.completedDir(), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -137,10 +142,8 @@ func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, error) {
 		latestDir = path
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-
-	fmt.Println("latestDir:", latestDir)
 
 	var latestPack string
 	if err := filepath.WalkDir(latestDir, func(path string, d fs.DirEntry, err error) error {
@@ -153,19 +156,16 @@ func (ds *dataStore) lockLatestFromComplete() (*flock.Flock, error) {
 		latestPack = d.Name()
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	fmt.Println("latestPack:", latestPack)
 
 	latestPackID, err := packIdFromPath(latestPack)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	nextPackID := latestPackID + 1
-	fmt.Println("latestPackID:", latestPackID)
-	fmt.Println("nextPackID:", nextPackID)
 
 	return ds.lockActive(nextPackID)
 }
@@ -176,15 +176,15 @@ type fileItem struct {
 }
 
 // if flock and err are nil, it means that no active pack was unlocked
-func (ds *dataStore) lockLargestPack() (*flock.Flock, error) {
+func (ds *dataStore) lockLargestPack() (*flock.Flock, uint64, error) {
 
 	files, err := sortedFilesLargestDesc(ds.activeDir())
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if len(files) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	var locked bool
@@ -196,7 +196,7 @@ func (ds *dataStore) lockLargestPack() (*flock.Flock, error) {
 
 		locked, err = lock.TryLock()
 		if err != nil {
-			return nil, fmt.Errorf("trying locking file: %w", err)
+			return nil, 0, fmt.Errorf("trying locking file: %w", err)
 		}
 
 		if locked {
@@ -204,15 +204,20 @@ func (ds *dataStore) lockLargestPack() (*flock.Flock, error) {
 		}
 
 		if err := lock.Close(); err != nil {
-			return nil, fmt.Errorf("closing lock: %w", err)
+			return nil, 0, fmt.Errorf("closing lock: %w", err)
 		}
 	}
 
 	if !locked {
-		return nil, nil
+		return nil, 0, nil
 	}
 
-	return lock, nil
+	packID, err := packIdFromPath(lock.Path())
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return lock, packID, nil
 }
 
 func sortedFilesLargestDesc(dir string) ([]fileItem, error) {

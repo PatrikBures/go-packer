@@ -43,7 +43,7 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 		return
 	}
 
-	lock, err := ds.lockActive(ds.nextPackID.Load())
+	lock, packID, err := ds.lockActive(ds.nextPackID.Load())
 	if err != nil {
 		err = fmt.Errorf("locking file: %w", err)
 		return
@@ -61,10 +61,6 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 			err = fmt.Errorf("unlocking pack: %w", err)
 		}
 	}()
-	packID, err := packIdFromPath(lock.Path())
-	if err != nil {
-		return
-	}
 
 	completedPath := ds.completedPackPath(packID)
 
