@@ -21,9 +21,10 @@ type dataStore struct {
 	packDir string
 
 	currentPackFile   *os.File
-	currentPackID     uint64
 	currentPackOffset atomic.Int64
 	currentPackLock   *flock.Flock
+	currentPackID     uint64
+	nextPackID        atomic.Uint64 // the next pack that should be attempted to lock
 
 	compactPackThreshold int64
 	maxPackSize          int64

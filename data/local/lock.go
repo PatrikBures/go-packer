@@ -67,8 +67,9 @@ func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
 // packIDstart is the first id it will try to lock.
 // Checks if pack already does not exist in completed.
 func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
-	for i := packIDstart; i < packIDstart+100; i++ {
-		_, err := os.Stat(ds.completedPackPath(i))
+	var packID uint64
+	for packID = packIDstart; packID < packIDstart+100; packID++ {
+		_, err := os.Stat(ds.completedPackPath(packID))
 		if err == nil {
 			continue
 		}
@@ -76,7 +77,7 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 			return nil, fmt.Errorf("checking if pack already exists in completed: %w", err)
 		}
 
-		lock := flock.New(ds.activePackPath(i))
+		lock := flock.New(ds.activePackPath(packID))
 
 		locked, err := lock.TryLock()
 		if err != nil {
@@ -84,7 +85,7 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 		}
 
 		if locked {
-			_, err := os.Stat(ds.completedPackPath(i))
+			_, err := os.Stat(ds.completedPackPath(packID))
 
 			// returns only if the completed pack path does not exist
 			// it is checking again because it could happen that between checking the first
@@ -106,6 +107,17 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 
 		if err := lock.Close(); err != nil {
 			return nil, err
+		}
+	}
+
+	// increases nextPackID only if it is higher than the previous one
+	for {
+		curr := ds.nextPackID.Load()
+		if packID <= curr {
+			break
+		}
+		if ds.nextPackID.CompareAndSwap(curr, packID+1) {
+			break
 		}
 	}
 

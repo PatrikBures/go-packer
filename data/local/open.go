@@ -13,7 +13,7 @@ import (
 
 // Opens the next pack.
 func (ds *dataStore) openPackWriteNext() (int64, error) {
-	lock, err := ds.lockActive(ds.currentPackID + 1)
+	lock, err := ds.lockActive(ds.nextPackID.Load())
 	if err != nil {
 		return 0, err
 	}
