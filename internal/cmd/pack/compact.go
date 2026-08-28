@@ -9,21 +9,19 @@ import (
 type CompactCmd struct{}
 
 func (c *CompactCmd) Run(ctx *Context) error {
-	packChunks, err := ctx.packager.CompactablePacks()
+	chunks, err := ctx.packager.CompactablePacks()
 	if err != nil {
 		return err
 	}
-	for packID, chunks := range packChunks {
-		fmt.Printf("packID: % 4d, chunks: % 4d\n", packID, len(chunks))
-	}
-	fmt.Printf("can compact from %d packs\n", len(packChunks))
+	fmt.Printf("can compact from %d chunks\n", len(chunks))
 
 	var compInfoAll packer.CompactInfo
 	for {
-		compInfo, err := ctx.packager.CompactNext(packChunks)
+		newChunks, compInfo, err := ctx.packager.CompactNext(chunks)
 		if err != nil {
 			return err
 		}
+		chunks = newChunks
 		if compInfo.PacksCreated == 0 {
 			break
 		}
@@ -31,6 +29,14 @@ func (c *CompactCmd) Run(ctx *Context) error {
 
 		fmt.Printf("%+v\n", compInfo)
 	}
+
+	// fmt.Println("Deleting unreferenced packs...")
+	//
+	// duInfo, err := ctx.packager.DeleteUnreferencedPacks()
+	// if err != nil {
+	// 	return err
+	// }
+	// compInfoAll.Merge(duInfo)
 
 	fmt.Printf("%+v\n", compInfoAll)
 	return nil

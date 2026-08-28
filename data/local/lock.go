@@ -68,6 +68,13 @@ func (ds *dataStore) lockNoComplete() (*flock.Flock, error) {
 // Checks if pack already does not exist in completed.
 func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 	for i := packIDstart; i < packIDstart+100; i++ {
+		_, err := os.Stat(ds.completedPackPath(i))
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("checking if pack already exists in completed: %w", err)
+		}
 
 		lock := flock.New(ds.activePackPath(i))
 
@@ -80,11 +87,20 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, error) {
 			_, err := os.Stat(ds.completedPackPath(i))
 
 			// returns only if the completed pack path does not exist
+			// it is checking again because it could happen that between checking the first
+			// time and locking that it got created by another instance/goroutine
 			if errors.Is(err, os.ErrNotExist) {
 				return lock, nil
 			} else if err != nil {
 				_ = lock.Close()
+				_ = os.Remove(lock.Path())
 				return nil, fmt.Errorf("stating completed: %w", err)
+			}
+			if err := os.Remove(lock.Path()); err != nil {
+				return nil, fmt.Errorf("removing active file after finding out it already exists in completed: %w", err)
+			}
+			if err := lock.Close(); err != nil {
+				return nil, fmt.Errorf("unlocking active file after finding out it already exists in completed: %w", err)
 			}
 		}
 

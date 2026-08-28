@@ -9,10 +9,12 @@ type DataStore interface {
 	NormalizePacks(packs map[uint64]PackInfo)
 	// also normalizes
 	FilterCompactable(packs map[uint64]PackInfo)
-	CompactNextPack(packs map[uint64][]ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error)
+	CompactNextPack(packs []ChunkInfoWithID) ([]ChunkInfoWithID, []ChunkInfoWithID, CompactInfo, error)
 
 	// Deletes packs, returning total byte amount removed.
 	DeletePacks(packs []uint64) (int64, error)
+
+	PacksBatch(startPackID uint64, packs []uint64) ([]uint64, error)
 
 	Close() error
 }

@@ -92,7 +92,7 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 
 // Gets all packs with their chunks to be relocated to new packs.
 // Should be passed to CompactNext in a loop
-func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
+func (p *Packager) CompactablePacks() ([]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
@@ -103,23 +103,23 @@ func (p *Packager) CompactablePacks() (map[uint64][]ChunkInfoWithID, error) {
 		return nil, nil
 	}
 
-	packChunks, err := p.metadataStore.ChunksForPacks(packs)
+	chunks, err := p.metadataStore.ChunksForPacks(packs)
 	if err != nil {
 		return nil, fmt.Errorf("getting chunks for each pack: %w", err)
 	}
-	return packChunks, nil
+	return chunks, nil
 }
 
-func (p *Packager) CompactNext(packChunks map[uint64][]ChunkInfoWithID) (CompactInfo, error) {
-	chunks, compInfo, err := p.dataStore.CompactNextPack(packChunks)
+func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error) {
+	newChunks, packChunks, compInfo, err := p.dataStore.CompactNextPack(chunks)
 	if err != nil {
-		return CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
+		return nil, CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
 	}
-	if err := p.metadataStore.UpdateChunks(chunks); err != nil {
-		return CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunks), err)
+	if err := p.metadataStore.UpdateChunks(packChunks); err != nil {
+		return nil, CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunks), err)
 	}
 
-	return compInfo, nil
+	return newChunks, compInfo, nil
 }
 
 // Returns the packs that would be compacted by Compact()
@@ -130,4 +130,40 @@ func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
 	}
 	p.dataStore.FilterCompactable(packs)
 	return packs, nil
+}
+
+func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
+	var nextPackID uint64
+	var packs []uint64
+
+	for {
+		if len(packs) > 0 {
+			packs = packs[:0]
+		}
+		packs, err = p.dataStore.PacksBatch(nextPackID, packs)
+		if err != nil {
+			return CompactInfo{}, err
+		}
+		if len(packs) == 0 {
+			break
+		}
+		if nextPackID-1 == packs[len(packs)-1] {
+			break
+		}
+		nextPackID = packs[len(packs)-1] + 1
+
+		packs, err = p.metadataStore.FilterExistingPacks(packs)
+		if err != nil {
+			return CompactInfo{}, err
+		}
+
+		bytesRemoved, err := p.dataStore.DeletePacks(packs)
+		if err != nil {
+			return CompactInfo{}, err
+		}
+
+		info.PacksRemoved += len(packs)
+		info.PackBytesRemoved += bytesRemoved
+	}
+	return
 }

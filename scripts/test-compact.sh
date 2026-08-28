@@ -29,3 +29,8 @@ go run ./internal/cmd/pack compact
 echo
 echo "after packs:"
 find "$tmpdir" -type f -name '*pack*' | sort -V
+
+for i in $(seq 2 2 50); do 
+    printf "checking chunk: %s" "$i -- "
+    go run ./internal/cmd/pack get "test$i"
+done

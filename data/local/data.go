@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync/atomic"
 
@@ -224,3 +226,29 @@ func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error)
 	return bytesRemoved, nil
 }
 
+
+func (ds *dataStore) PacksBatch(startPackID uint64, packs []uint64) ([]uint64, error) {
+	dir := filepath.Dir(ds.completedPackPath(startPackID))
+
+	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		packID, err := packIdFromPath(path)
+		if err != nil {
+			return err
+		}
+		fmt.Println("found completed pack: ", packID)
+		packs = append(packs, packID)
+		return nil
+	}); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	slices.Sort(packs)
+
+	return packs, nil
+}

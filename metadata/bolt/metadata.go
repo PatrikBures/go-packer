@@ -4,6 +4,7 @@ package metadata
 import (
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -64,32 +65,88 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 		buf := ms.getPool()
 		defer ms.putPool(buf)
 
-		packIDBytes := buf[:8]
-		binary.LittleEndian.PutUint64(packIDBytes, ci.PackID)
+		return addChunk(bc, bp, buf, id, ci)
 
-		refsBytes := bp.Get(packIDBytes)
-		var refs uint32
-		if refsBytes != nil {
-			refs = binary.LittleEndian.Uint32(refsBytes)
-		}
-
-		newRefsBytes := buf[8:12]
-		binary.LittleEndian.PutUint32(newRefsBytes, refs+1)
-
-		if err := bp.Put(packIDBytes, newRefsBytes); err != nil {
-			return err
-		}
-
-		chunkInfoBytes := buf[12:32]
-		ci.PutBytes(buf[12:32])
-
-		return bc.Put(id, chunkInfoBytes)
 	}); err != nil {
 		return err
 	}
 
 	return nil
 }
+
+func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
+	return ms.db.Update(func(tx *bolt.Tx) error {
+		bc := tx.Bucket(bucketChunks)
+		if bc == nil {
+			return ErrBucketNotFound
+		}
+		bp := tx.Bucket(bucketPacks)
+		if bp == nil {
+			return ErrBucketNotFound
+		}
+
+		buf := ms.getPool()
+		defer ms.putPool(buf)
+
+		for _, ci := range chunks {
+			if err := addChunk(bc, bp, buf, ci.Id, ci.ChunkInfo); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// Puts chunk and puts pack increasing the refcount.
+// If the chunk already exists, and its existing packID differs from the new one,
+// its refcount is reduced, if the refcount would become negative, that pack is deleted.
+func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, buf []byte, id []byte, ci packer.ChunkInfo) error {
+	packIDBytes := buf[:8]
+	binary.LittleEndian.PutUint64(packIDBytes, ci.PackID)
+
+	refsBytes := bp.Get(packIDBytes)
+	var refs uint32
+	if refsBytes != nil {
+		refs = binary.LittleEndian.Uint32(refsBytes)
+	}
+	existingChunkBytes := bc.Get(id)
+	if len(existingChunkBytes) == 20 {
+
+		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes[:8])
+
+		if existingPackID != ci.PackID {
+			existingPackIDBytes := buf[32:40]
+			binary.LittleEndian.PutUint64(existingPackIDBytes, existingPackID)
+
+			existingRefsBytes := bp.Get(existingPackIDBytes)
+			existingRefs := binary.LittleEndian.Uint32(existingRefsBytes)
+
+			if existingRefs == 1 {
+				if err := bp.Delete(existingPackIDBytes); err != nil {
+					return err
+				}
+			} else {
+				binary.LittleEndian.PutUint32(existingRefsBytes, existingRefs-1)
+				if err := bp.Put(existingPackIDBytes, existingRefsBytes); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	newRefsBytes := buf[8:12]
+	binary.LittleEndian.PutUint32(newRefsBytes, refs+1)
+
+	if err := bp.Put(packIDBytes, newRefsBytes); err != nil {
+		return err
+	}
+
+	chunkInfoBytes := buf[12:32]
+	ci.PutBytes(buf[12:32])
+
+	return bc.Put(id, chunkInfoBytes)
+}
+
 
 func (ms *metadataStore) Get(id []byte) (packer.ChunkInfo, error) {
 	var ci packer.ChunkInfo
@@ -291,10 +348,10 @@ func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
 	return packInfos, nil
 }
 
-func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[uint64][]packer.ChunkInfoWithID, error) {
-	packChunks := make(map[uint64][]packer.ChunkInfoWithID)
+func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]packer.ChunkInfoWithID, error) {
+	chunks := make([]packer.ChunkInfoWithID, 0, len(packs)*5)
 
-	return packChunks, ms.db.View(func(tx *bolt.Tx) error {
+	if err := ms.db.View(func(tx *bolt.Tx) error {
 		cb := tx.Bucket(bucketChunks)
 		if cb == nil {
 			return ErrBucketNotFound
@@ -315,31 +372,57 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) (map[u
 				ChunkInfo: ci,
 				Id:        k,
 			}
-			packChunks[packID] = append(packChunks[packID], ciw)
+
+			chunks = append(chunks, ciw)
 
 			return nil
 		})
+	}); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(chunks, func(a packer.ChunkInfoWithID, b packer.ChunkInfoWithID) int {
+		if a.PackID < b.PackID {
+			return -1
+		} else {
+			return 1
+		}
 	})
+
+	return chunks, nil
 }
 
-func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
-	return ms.db.Update(func(tx *bolt.Tx) error {
-		cb := tx.Bucket(bucketChunks)
-		if cb == nil {
+func (ms *metadataStore) FilterExistingPacks(packs []uint64) ([]uint64, error) {
+	var n int
+	if err := ms.db.Update(func(tx *bolt.Tx) error {
+		pb := tx.Bucket(bucketPacks)
+		if pb == nil {
 			return ErrBucketNotFound
 		}
 
 		buf := ms.getPool()
 		defer ms.putPool(buf)
 
-		for _, ci := range chunks {
-			ci.PutBytes(buf)
-			if err := cb.Put(ci.Id, buf[:20]); err != nil {
-				return err
+		fmt.Println()
+		fmt.Println("FILTERING PACKS")
+		for _, packID := range packs {
+			binary.LittleEndian.PutUint64(buf, packID)
+
+			fmt.Println("handling packID: ", packID)
+			if pb.Get(buf[:8]) == nil {
+				packs[n] = packID
+				n++
 			}
+			fmt.Println("resulting slice:     ", packs)
+			fmt.Println("resulting cut slice: ", packs[:n])
+
 		}
+		fmt.Println()
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
+
+	return packs[:n], nil
 }
 
 func (ms *metadataStore) version() (uint64, error) {
