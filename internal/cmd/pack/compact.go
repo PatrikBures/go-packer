@@ -30,13 +30,13 @@ func (c *CompactCmd) Run(ctx *Context) error {
 		fmt.Printf("%+v\n", compInfo)
 	}
 
-	// fmt.Println("Deleting unreferenced packs...")
-	//
-	// duInfo, err := ctx.packager.DeleteUnreferencedPacks()
-	// if err != nil {
-	// 	return err
-	// }
-	// compInfoAll.Merge(duInfo)
+	fmt.Println("Deleting unreferenced packs...")
+
+	duInfo, err := ctx.packager.DeleteUnreferencedPacks()
+	if err != nil {
+		return err
+	}
+	compInfoAll.Merge(duInfo)
 
 	fmt.Printf("%+v\n", compInfoAll)
 	return nil

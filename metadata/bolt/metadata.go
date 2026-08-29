@@ -402,19 +402,13 @@ func (ms *metadataStore) FilterExistingPacks(packs []uint64) ([]uint64, error) {
 		buf := ms.getPool()
 		defer ms.putPool(buf)
 
-		fmt.Println()
-		fmt.Println("FILTERING PACKS")
 		for _, packID := range packs {
 			binary.LittleEndian.PutUint64(buf, packID)
 
-			fmt.Println("handling packID: ", packID)
 			if pb.Get(buf[:8]) == nil {
 				packs[n] = packID
 				n++
 			}
-			fmt.Println("resulting slice:     ", packs)
-			fmt.Println("resulting cut slice: ", packs[:n])
-
 		}
 		fmt.Println()
 		return nil
