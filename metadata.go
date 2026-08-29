@@ -6,16 +6,29 @@ import (
 )
 
 type MetadataStore interface {
+
 	Close() error
+
 	Put(id []byte, ci ChunkInfo) error
+
 	Get(id []byte) (ChunkInfo, error)
+
 	Exists(id []byte) (bool, error)
+
 	Delete(id []byte) error
+
+	// Returns packs that are in any of the provided packIDs.
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
+
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
+
 	PackInfoAll() (map[uint64]PackInfo, error)
+
 	ChunksForPacks(packs map[uint64]PackInfo) ([]ChunkInfoWithID, error)
+
 	UpdateChunks(chunks []ChunkInfoWithID) error
+
+	// Removes packIDs which do not exist, returning the updated slice.
 	FilterExistingPacks(packs []uint64) ([]uint64, error)	
 }
 

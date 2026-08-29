@@ -6,9 +6,18 @@ type DataStore interface {
 	// returns the offset excluding the headersize but not the size prefix for each chunk
 	Put(data []byte) (ChunkInfo, error)
 	Get(ChunkInfo, []byte) ([]byte, error)
+
+	// Normalizes each pack size.
 	NormalizePacks(packs map[uint64]PackInfo)
-	// also normalizes
+
+	// Removes packs that should not be compacted. It also normalizes each pack.
 	FilterCompactable(packs map[uint64]PackInfo) error
+
+	// the provided slice will be split into two slices, the second one
+	// returned is a slice containing the chunks for a new pack.
+	// The first slice excludes the chunks from the second slice.
+	//
+	// It is intended to be ran in a loop, each time providing the updated slice.
 	CompactNextPack(packs []ChunkInfoWithID) ([]ChunkInfoWithID, []ChunkInfoWithID, CompactInfo, error)
 
 	// Deletes packs, returning total byte amount removed.

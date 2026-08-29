@@ -39,32 +39,34 @@ type Option func(ds *dataStore)
 
 const prefixLen = 4
 
-// if bytes is less than 1MiB, it will clamp to 1MiB
+// If bytes is less than 1MiB, it will clamp to 1MiB.
+// Default is 64MiB.
 func WithMaxPackSize(bytes int64) Option {
 	return func(ds *dataStore) {
 		ds.maxPackSize = max(minPackSize, bytes)
 	}
 }
 
-// ratio of existing chunks in a pack compared with the total size of the pack.
+// Ratio of existing chunks in a pack compared with the total size of the pack.
 //
-// if the ratio is below 0 it will be set to 0.75.
-// the ratio is clamped between 0 and 1.
+// If the ratio is below 0 it will be set to 0.75, which is the default value.
+// Ratio is clamped to max 1.
 func WithCompactPackThreshold(ratio float64) Option {
 	return func(ds *dataStore) {
-		ds.compactPackRatio = ratio
+		ds.compactPackRatio = max(min(ratio, 1), -1)
 	}
 }
 
 // instead of returning and error when getting a chunk
 // if the chunk won't fit in the buf, grow the buf.
+// it should mainly be used if the size limit of chunks is not known.
 func WithGrowBuf(b bool) Option {
 	return func(ds *dataStore) {
 		ds.growBuf = b
 	}
 }
 
-// Default maxPackSize is 64MiB
+// Creates packDir, initializes database and prepares pack for writing.
 func Init(packDir string, opts ...Option) (*dataStore, error) {
 
 	if err := os.MkdirAll(packDir, 0775); err != nil {
@@ -81,7 +83,6 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 		opt(&ds)
 	}
 
-	ds.compactPackRatio = max(min(ds.compactPackRatio, 1), -1)
 	if ds.compactPackRatio < 0 {
 		ds.compactPackRatio = 0.75
 	}
@@ -145,9 +146,9 @@ func (ds *dataStore) put(packID uint64, data []byte, f *os.File, offset int64) (
 	}, nil
 }
 
-// reads chunk into buf, returning the slice containing the chunk
+// Reads chunk into buf, returning the slice containing the chunk
 //
-// if !growBuf, then buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
+// If !growBuf, then buf len needs to be equal or larger than ChunkInfo.SizeBytes + prefixLen
 func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 
 	expectedReadBytesI := int(ci.SizeBytes) + prefixLen
@@ -233,6 +234,7 @@ func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error)
 }
 
 
+// Returns a batch of packs
 func (ds *dataStore) PacksBatch(startPackID uint64, packs []uint64) ([]uint64, error) {
 	dir := filepath.Dir(ds.completedPackPath(startPackID))
 

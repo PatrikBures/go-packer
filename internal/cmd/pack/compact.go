@@ -9,7 +9,7 @@ import (
 type CompactCmd struct{}
 
 func (c *CompactCmd) Run(ctx *Context) error {
-	chunks, err := ctx.packager.CompactablePacks()
+	chunks, err := ctx.packager.CompactablePackChunks()
 	if err != nil {
 		return err
 	}

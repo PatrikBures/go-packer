@@ -92,7 +92,7 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 
 // Gets all packs with their chunks to be relocated to new packs.
 // Should be passed to CompactNext in a loop
-func (p *Packager) CompactablePacks() ([]ChunkInfoWithID, error) {
+func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
@@ -112,6 +112,8 @@ func (p *Packager) CompactablePacks() ([]ChunkInfoWithID, error) {
 	return chunks, nil
 }
 
+// The returned slice should be passed again to this method in a loop.
+// It should break out of the loop when CompactInfo.PacksCreated = 0.
 func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error) {
 	newChunks, packChunks, compInfo, err := p.dataStore.CompactNextPack(chunks)
 	if err != nil {
@@ -124,7 +126,7 @@ func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, Com
 	return newChunks, compInfo, nil
 }
 
-// Returns the packs that would be compacted by Compact()
+// Returns the packs to be compacted
 func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
