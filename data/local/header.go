@@ -48,6 +48,19 @@ const (
 	stateCompacting headerState = 3
 )
 
+func (h header) String() string {
+	return fmt.Sprintf(`
+magic: %v, default: %v
+packID: %d
+version: v%d.%d, want v%d.%d
+headerSize: %d, default %d`,
+		h.Magic, defaultHeaderMagic,
+		h.PackID,
+		h.MajorVersion, h.MinorVersion, majorVersion, minorVersion,
+		h.HeaderSize, headerLen,
+	)
+}
+
 type headerFlags uint64
 
 // example how in the future to implement flags
@@ -116,7 +129,7 @@ func (h *header) ReadFrom(r io.Reader) (int64, error) {
 	h.Checksum = 0
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], 0)
 	if crc32.ChecksumIEEE(data[:]) != checksum {
-		return 0, ErrHeaderChecksum
+		return 0, fmt.Errorf("%w: header: %s", ErrHeaderChecksum, h)
 	}
 	h.Checksum = checksum
 

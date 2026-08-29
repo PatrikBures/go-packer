@@ -80,13 +80,13 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error
 
 		locked, err := lock.TryLock()
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, fmt.Errorf("trying to get lock: %w", err)
 		}
 
 		// if it did not manage to lock, try next id
 		if !locked {
 			if err := lock.Close(); err != nil {
-				return nil, 0, err
+				return nil, 0, fmt.Errorf("closing lock: %w", err)
 			}
 			continue
 		}

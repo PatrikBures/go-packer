@@ -47,6 +47,20 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 	return chunks, nil
 }
 
+func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
+	chunkIDs := make([][]byte, 0, 128)
+	return chunkIDs, ms.db.View(func(tx *bolt.Tx) error {
+		cb := tx.Bucket(bucketChunks)
+		if cb == nil {
+			return ErrBucketNotFound
+		}
+		return cb.ForEach(func(k, v []byte) error {
+			chunkIDs = append(chunkIDs, k)
+			return nil
+		})
+	})
+}
+
 func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
 	buf := ms.getPool()
 	defer ms.putPool(buf)

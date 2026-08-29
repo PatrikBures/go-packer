@@ -15,8 +15,8 @@ type metadataStore struct {
 	bufPool sync.Pool
 }
 
-func Init(path string) (*metadataStore, error) {
-	db, err := bolt.Open(path, 0664, &bolt.Options{
+func Init(dbPath string) (*metadataStore, error) {
+	db, err := bolt.Open(dbPath, 0664, &bolt.Options{
 		Timeout: 1 * time.Second,
 	})
 	if err != nil {

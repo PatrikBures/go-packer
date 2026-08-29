@@ -6,19 +6,22 @@ import (
 )
 
 type DeleteCmd struct {
-	Name []string `arg:"" name:"names"`
+	Names []string `arg:"" name:"names"`
 }
 
 func (c *DeleteCmd) Run(ctx *Context) error {
 
-	for _, n := range c.Name {
+	hashes := make([][]byte, 0, len(c.Names))
+	for _, n := range c.Names {
 		hash := sha256.Sum256([]byte(n))
-
-		if err := ctx.packager.Delete(hash[:]); err != nil {
-			return err
-		}
-		fmt.Printf("Deleted '%s'\n", n)
+		hashes = append(hashes, hash[:])
 	}
+
+	if err := ctx.packager.Delete(hashes); err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted %d chunks\n", len(hashes))
 
 	return nil
 }

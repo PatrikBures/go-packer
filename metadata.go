@@ -15,10 +15,12 @@ type MetadataStore interface {
 
 	Exists(id []byte) (bool, error)
 
-	Delete(id []byte) error
+	Delete(id [][]byte) error
 
 	// Returns packs that are in any of the provided packIDs.
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
+
+	ChunkIDsAll() ([][]byte, error)
 
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
 

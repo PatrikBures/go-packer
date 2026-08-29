@@ -64,12 +64,16 @@ func (p *Packager) Get(id []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (p *Packager) Delete(id []byte) error {
-	return p.metadataStore.Delete(id)
+func (p *Packager) Delete(ids [][]byte) error {
+	return p.metadataStore.Delete(ids)
 }
 
 func (p *Packager) Chunks(packIDs []uint64) ([]ChunkInfo, error) {
 	return p.metadataStore.Chunks(packIDs)
+}
+
+func (p *Packager) ChunkIDsAll() ([][]byte, error) {
+	return p.metadataStore.ChunkIDsAll()
 }
 
 func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
@@ -124,6 +128,34 @@ func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, Com
 	}
 
 	return newChunks, compInfo, nil
+}
+
+func (p *Packager) Compact() (CompactInfo, error) {
+	chunks, err := p.CompactablePackChunks()
+	if err != nil {
+		return CompactInfo{}, err
+	}
+
+	var compInfoAll CompactInfo
+
+	for {
+		newChunks, compInfo, err := p.CompactNext(chunks)
+		if err != nil {
+			return CompactInfo{}, err
+		}
+		chunks = newChunks
+		if compInfo.PacksCreated == 0 {
+			break
+		}
+		compInfoAll.Merge(compInfo)
+	}
+	duInfo, err := p.DeleteUnreferencedPacks()
+	if err != nil {
+		return compInfoAll, err
+	}
+	compInfoAll.Merge(duInfo)
+
+	return compInfoAll, nil
 }
 
 // Returns the packs to be compacted

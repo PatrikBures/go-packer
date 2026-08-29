@@ -15,10 +15,15 @@ import (
 func (ds *dataStore) openPackWriteNext() (int64, error) {
 	lock, packID, err := ds.lockActive(ds.nextPackID.Load())
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("locking active: %w", err)
 	}
 
-	return ds.createPack(packID, lock)
+	size, err := ds.createPack(packID, lock)
+	if err != nil {
+		return 0, fmt.Errorf("creating pack %d: %w", packID, err)
+	}
+
+	return size, nil
 }
 
 // Automatically opens the next snapshot.
@@ -92,19 +97,19 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 
 		var h header
 		if _, err := h.ReadFrom(ds.currentPackFile); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("reading header from prev pack: %w", err)
 		}
 		// ensure header is written at start of file
 		if _, err := ds.currentPackFile.Seek(0, 0); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("seeking to start: %w", err)
 		}
 		h.State = stateCompleted
 		if _, err := h.WriteTo(ds.currentPackFile); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("writing header to prev pack: %w", err)
 		}
 
 		if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
-			return 0, fmt.Errorf("renaming pack to completed: %w", err)
+			return 0, fmt.Errorf("renaming prev pack to completed: %w", err)
 		}
 	}
 
