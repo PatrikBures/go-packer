@@ -247,7 +247,6 @@ func (ds *dataStore) PacksBatch(startPackID uint64, packs []uint64) ([]uint64, e
 		if err != nil {
 			return err
 		}
-		fmt.Println("found completed pack: ", packID)
 		packs = append(packs, packID)
 		return nil
 	}); err != nil && !errors.Is(err, os.ErrNotExist) {
