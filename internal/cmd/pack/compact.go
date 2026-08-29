@@ -27,7 +27,7 @@ func (c *CompactCmd) Run(ctx *Context) error {
 		}
 		compInfoAll.Merge(compInfo)
 
-		fmt.Printf("%+v\n", compInfo)
+		fmt.Printf("%s\n", compInfo)
 	}
 
 	fmt.Println("Deleting unreferenced packs...")
@@ -38,6 +38,6 @@ func (c *CompactCmd) Run(ctx *Context) error {
 	}
 	compInfoAll.Merge(duInfo)
 
-	fmt.Printf("%+v\n", compInfoAll)
+	fmt.Printf("%s\n", compInfoAll)
 	return nil
 }

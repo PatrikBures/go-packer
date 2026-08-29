@@ -1,5 +1,11 @@
 package packer
 
+import (
+	"fmt"
+
+	"go.pabu.dev/bytesize"
+)
+
 type DataStore interface {
 	// will only put the amount in SizeBytes from data
 	//
@@ -34,6 +40,14 @@ type CompactInfo struct {
 	PacksRemoved     int
 	PacksCreated     int
 	ChunksMoved      int
+}
+
+func (ci CompactInfo) String() string {
+	return fmt.Sprintf("SizeDiff: % 5s, removed %d and created %d packs, moved %d chunks", 
+		bytesize.FormatIEC(ci.PackBytesAdded - ci.PackBytesRemoved),
+		ci.PacksRemoved, ci.PacksCreated,
+		ci.ChunksMoved,
+	)
 }
 
 func (c *CompactInfo) Merge(other CompactInfo) {
