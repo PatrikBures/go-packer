@@ -87,7 +87,7 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 
 	if err = os.Rename(lock.Path(), completedPath); err != nil {
 		_ = os.Remove(lock.Path())
-		err = fmt.Errorf("moving pack to completed: %w")
+		err = fmt.Errorf("moving pack to completed: %w", err)
 		return
 	}
 
