@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,19 +16,39 @@ func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 	}
 }
 
-func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) {
+func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 	for packID, info := range packs {
 		np := normalizePack(info)
-		if !ds.shouldCompact(np) {
+		if ok, err := ds.shouldCompact(packID, np); err != nil {
+			return fmt.Errorf("filtering packID %d: %w", packID, err)
+		} else if !ok {
 			delete(packs, packID)
 		} else {
 			packs[packID] = np
 		}
 	}
+	return nil
 }
 
-func (ds *dataStore) shouldCompact(pack packer.PackInfo) bool {
-	return pack.ChunkTotalSize < uint64(ds.compactPackThreshold)
+func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, error) {
+	var size int64
+	if f := ds.packRead.Get(packID); f != nil {
+		stat, err := f.Stat()
+		if err != nil {
+			return false, fmt.Errorf("stating file from cache: %w", err)
+		}
+		size = stat.Size()
+	} else {
+		stat, err := os.Stat(ds.completedPackPath(packID))
+		if errors.Is(err, os.ErrNotExist) {
+			stat, err = os.Stat(ds.activePackPath(packID))
+		}
+		if err != nil {
+			return false, fmt.Errorf("getting stat of pack: %w", err)
+		}
+		size = stat.Size()
+	}
+	return float64(size) / float64(pack.ChunkTotalSize) >= ds.compactPackRatio, nil
 }
 
 func normalizePack(pack packer.PackInfo) packer.PackInfo {

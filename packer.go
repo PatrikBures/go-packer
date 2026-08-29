@@ -97,7 +97,9 @@ func (p *Packager) CompactablePacks() ([]ChunkInfoWithID, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
 	}
-	p.dataStore.FilterCompactable(packs)
+	if err := p.dataStore.FilterCompactable(packs); err != nil {
+		return nil, err
+	}
 
 	if len(packs) == 0 {
 		return nil, nil
@@ -128,7 +130,9 @@ func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
 	}
-	p.dataStore.FilterCompactable(packs)
+	if err := p.dataStore.FilterCompactable(packs); err != nil {
+		return nil, err
+	}
 	return packs, nil
 }
 

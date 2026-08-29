@@ -8,7 +8,7 @@ type DataStore interface {
 	Get(ChunkInfo, []byte) ([]byte, error)
 	NormalizePacks(packs map[uint64]PackInfo)
 	// also normalizes
-	FilterCompactable(packs map[uint64]PackInfo)
+	FilterCompactable(packs map[uint64]PackInfo) error
 	CompactNextPack(packs []ChunkInfoWithID) ([]ChunkInfoWithID, []ChunkInfoWithID, CompactInfo, error)
 
 	// Deletes packs, returning total byte amount removed.

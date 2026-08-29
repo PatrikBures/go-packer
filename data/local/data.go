@@ -26,7 +26,7 @@ type dataStore struct {
 	currentPackID     uint64
 	nextPackID        atomic.Uint64 // the next pack that should be attempted to lock
 
-	compactPackThreshold int64
+	compactPackRatio float64
 	maxPackSize          int64
 	growBuf              bool
 
@@ -46,9 +46,13 @@ func WithMaxPackSize(bytes int64) Option {
 	}
 }
 
-func WithCompactPackThreshold(bytes int64) Option {
+// ratio of existing chunks in a pack compared with the total size of the pack.
+//
+// if the ratio is below 0 it will be set to 0.75.
+// the ratio is clamped between 0 and 1.
+func WithCompactPackThreshold(ratio float64) Option {
 	return func(ds *dataStore) {
-		ds.compactPackThreshold = bytes
+		ds.compactPackRatio = ratio
 	}
 }
 
@@ -77,8 +81,9 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 		opt(&ds)
 	}
 
-	if ds.compactPackThreshold <= 0 {
-		ds.compactPackThreshold = ds.maxPackSize>>1 + ds.maxPackSize>>2
+	ds.compactPackRatio = max(min(ds.compactPackRatio, 1), -1)
+	if ds.compactPackRatio < 0 {
+		ds.compactPackRatio = 0.75
 	}
 
 	if _, err := ds.openPackWrite(); err != nil {
