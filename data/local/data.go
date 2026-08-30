@@ -105,11 +105,11 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
 	}
 
-	size64 := int64(len(data))
+	totalSize := int64(len(data) + prefixLen)
 
-	offset := ds.currentPackOffset.Add(size64) - size64
+	offset := ds.currentPackOffset.Add(totalSize) - totalSize
 
-	if offset+size64+prefixLen >= ds.maxPackSize {
+	if offset+totalSize >= ds.maxPackSize {
 		newOffset, err := ds.openPackWriteNext()
 		if err != nil {
 			return packer.ChunkInfo{}, fmt.Errorf("opening new pack as it reached maxsize: %w", err)
@@ -192,34 +192,27 @@ func (ds *dataStore) Get(ci packer.ChunkInfo, buf []byte) ([]byte, error) {
 	return data, nil
 }
 
-// Ignores deletion of any active packs
+// Ignores deletion of any active packs.
+// Removes pack from read cache.
 func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error) {
 	for _, packID := range packs {
 
 		var stat os.FileInfo
 
-		if f := ds.packRead.GetRemovePack(packID); f != nil {
-			// removes pack from cache and getting its stat
-
-			stat, err = f.Stat()
-			if err != nil {
-				return bytesRemoved, fmt.Errorf("stating cached pack: %w", err)
-			}
-
-			_ = f.Close()
-		} else {
-			// stats file, continuing if it exists in active
-
-			stat, err = os.Stat(ds.completedPackPath(packID))
-			if errors.Is(err, os.ErrNotExist) {
-				if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
-					continue
-				}
-			}
-			if err != nil {
-				return bytesRemoved, fmt.Errorf("stating pack: %w", err)
+		// stats file, continuing if it exists in active
+		stat, err = os.Stat(ds.completedPackPath(packID))
+		if errors.Is(err, os.ErrNotExist) {
+			// this still causes the next err check to error if active does not exist
+			if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
+				continue
 			}
 		}
+		if err != nil {
+			return bytesRemoved, fmt.Errorf("stating pack: %w", err)
+		}
+
+		_ = ds.packRead.ClosePack(packID)
+
 		size := stat.Size()
 
 		err = os.Remove(ds.completedPackPath(packID))
