@@ -182,10 +182,7 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 		if err != nil {
 			return CompactInfo{}, err
 		}
-		if len(packs) == 0 {
-			break
-		}
-		if nextPackID-1 == packs[len(packs)-1] {
+		if len(packs) == 0 || nextPackID-1 == packs[len(packs)-1] {
 			break
 		}
 		nextPackID = packs[len(packs)-1] + 1
