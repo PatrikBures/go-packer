@@ -50,14 +50,14 @@ const (
 
 func (h header) String() string {
 	return fmt.Sprintf(`
-magic: %v, default: %v
-packID: %d
-version: v%d.%d, want v%d.%d
-headerSize: %d, default %d`,
-		h.Magic, defaultHeaderMagic,
-		h.PackID,
-		h.MajorVersion, h.MinorVersion, majorVersion, minorVersion,
-		h.HeaderSize, headerLen,
+magic: %x, default: %x | bin: %b, default: %b
+packID: %d | bin: %b
+version: v%d.%d, want v%d.%d | bin: v%b.%b, want v%b.%b
+headerSize: %d, default %d | bin: %b, default %b`,
+		h.Magic, defaultHeaderMagic, h.Magic, defaultHeaderMagic,
+		h.PackID, h.PackID,
+		h.MajorVersion, h.MinorVersion, majorVersion, minorVersion, h.MajorVersion, h.MinorVersion, majorVersion, minorVersion,
+		h.HeaderSize, headerLen, h.HeaderSize, headerLen,
 	)
 }
 

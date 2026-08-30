@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+go build -o ./bin/pack ./internal/cmd/pack
+
 testfile="$1"
 if [[ -z "$testfile" ]]; then
     echo "no testfile provided"
@@ -10,13 +12,12 @@ tmpdir="/tmp/testing-packer"
 
 rm -rf "$tmpdir"
 
-for i in {1..50}; do 
-    go run ./internal/cmd/pack put "test$i" "$1"
-done
+count=100000
 
-for i in $(seq 1 2 50); do 
-    go run ./internal/cmd/pack delete "test$i"
-done
+./bin/pack put --count "$count" test "$testfile" || exit 1
+
+# shellcheck disable=SC2046
+./bin/pack delete $(seq 1 2 $count | sed 's/^/test/') || exit 1
 
 
 echo
@@ -24,13 +25,13 @@ echo "before packs:"
 find "$tmpdir" -type f -name '*pack*' | sort -V
 echo
 
-go run ./internal/cmd/pack compact
+./bin/pack compact
 
 echo
 echo "after packs:"
 find "$tmpdir" -type f -name '*pack*' | sort -V
 
-for i in $(seq 2 2 50); do 
+for i in $(seq 2 2 $count); do 
     printf "checking chunk: %s" "$i -- "
-    go run ./internal/cmd/pack get "test$i"
+    ./bin/pack get "test$i"
 done

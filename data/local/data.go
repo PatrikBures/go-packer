@@ -139,6 +139,10 @@ func (ds *dataStore) put(packID uint64, data []byte, f *os.File, offset int64) (
 		return packer.ChunkInfo{}, fmt.Errorf("writing data: %w", err)
 	}
 
+	if err := f.Sync(); err != nil {
+		return packer.ChunkInfo{}, fmt.Errorf("syncing chunk: %w", err)
+	}
+
 	return packer.ChunkInfo{
 		PackID:    packID,
 		Offset:    uint64(offset - headerLen),
