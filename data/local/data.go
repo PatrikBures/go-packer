@@ -233,23 +233,33 @@ func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error)
 
 // Returns a batch of packs
 func (ds *dataStore) PacksBatch(startPackID uint64, packs []uint64) ([]uint64, error) {
-	dir := filepath.Dir(ds.completedPackPath(startPackID))
+	startLen := len(packs)
 
-	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
+	dirID := ds.completedPackDirID(startPackID)
+	dirIDLimit := dirID + 1000
+
+	for ; startLen == len(packs) && dirID < dirIDLimit; dirID++ {
+		dir := ds.completedPackDir(dirID)
+
+		if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			packID, err := packIdFromPath(path)
+			if err != nil {
+				return err
+			}
+			packs = append(packs, packID)
 			return nil
+		}); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
 		}
-		packID, err := packIdFromPath(path)
-		if err != nil {
-			return err
+		if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrExist) && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("removing remaining empty packDir: %w", err)
 		}
-		packs = append(packs, packID)
-		return nil
-	}); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
 	}
 
 	slices.Sort(packs)
