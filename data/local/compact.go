@@ -122,7 +122,7 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 			return nil, nil, packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
 		}
 
-		newCi, err := ds.put(packID, data, f, offset)
+		newCi, err := putChunk(packID, data, f, offset)
 		if err != nil {
 			return nil, nil, packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
 		}

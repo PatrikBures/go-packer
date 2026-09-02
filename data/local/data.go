@@ -117,10 +117,15 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		offset = newOffset
 	}
 
-	return ds.put(ds.currentPackID, data, ds.currentPackFile, offset)
+	return putChunk(ds.currentPackID, data, ds.currentPackFile, offset)
 }
 
-func (ds *dataStore) put(packID uint64, data []byte, f *os.File, offset int64) (packer.ChunkInfo, error) {
+// Writes data starting at offset to file. 
+// Prepends the prefix and its data before the chunk.
+// Removes headerLen from the final offset (not sure if to keep).
+// 
+// packID is just used for the returning ChunkInfo.
+func putChunk(packID uint64, data []byte, f *os.File, offset int64) (packer.ChunkInfo, error) {
 	if len(data) > math.MaxUint32 {
 		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
 	}
