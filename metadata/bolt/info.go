@@ -2,7 +2,6 @@ package metadata
 
 import (
 	"encoding/binary"
-	"fmt"
 	"slices"
 
 	bolt "go.etcd.io/bbolt"
@@ -191,7 +190,6 @@ func (ms *metadataStore) FilterExistingPacks(packs []uint64) ([]uint64, error) {
 				n++
 			}
 		}
-		fmt.Println()
 		return nil
 	}); err != nil {
 		return nil, err

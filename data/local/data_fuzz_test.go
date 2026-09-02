@@ -173,7 +173,7 @@ func FuzzData(f *testing.F) {
 		ms := newMetadataStore()
 
 		var wg sync.WaitGroup
-		for i := range instances{
+		for i := range instances {
 			inst := stores[i]
 			for range routinesPerInstance {
 				subSeed := rng.Uint64()

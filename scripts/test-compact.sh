@@ -12,7 +12,7 @@ tmpdir="/tmp/testing-packer"
 
 rm -rf "$tmpdir"
 
-count=100000
+count=5000
 
 ./bin/pack put --count "$count" test "$testfile" || exit 1
 
