@@ -299,7 +299,8 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 				var nextPackID uint64
 				var deletePacksSlice []uint64
 
-				for {
+				// limit so it does not get stuck
+				for range 1000 {
 					packs, err := ds.PacksBatch(nextPackID, nil)
 					if err != nil {
 						return err
