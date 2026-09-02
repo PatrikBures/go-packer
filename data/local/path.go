@@ -15,9 +15,18 @@ func packName(packID uint64) string {
 }
 
 func (ds *dataStore) completedPackPath(packID uint64) string {
-	dir := packID >> 10
+	dir := ds.completedPackDirID(packID)
 	return filepath.Join(ds.packDir, dirNameCompleted, strconv.FormatUint(dir, 10), packName(packID))
 }
+
+func (ds *dataStore) completedPackDirID(packID uint64) uint64 {
+	return packID >> 10
+}
+
+func (ds *dataStore) completedPackDir(dirID uint64) string {
+	return filepath.Join(ds.packDir, dirNameCompleted, strconv.FormatUint(dirID, 10))
+}
+
 func (ds *dataStore) activePackPath(packID uint64) string {
 	return filepath.Join(ds.packDir, dirNameActive, packName(packID))
 }
