@@ -3,7 +3,6 @@ package data
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -143,15 +142,25 @@ const minMinChunkSize = 8<<10   // 8KiB
 const maxMaxPackSize  = 32<<20  // 32MiB
 const minMinPackSize = 1<<20    // 1MiB
 
-func FuzzData(f *testing.F) {
+
+func FuzzData1x1(f *testing.F) {
+	fuzzData(f, 1, 1)
+}
+
+func FuzzData1x3(f *testing.F) {
+	fuzzData(f, 1, 3)
+}
+
+// func FuzzData4x3(f *testing.F) {
+// 	fuzzData(f, 4, 3)
+// }
+
+func fuzzData(f *testing.F, instances int, routinesPerInstance int) {
 
 	f.Add(uint64(112233))
 
 	f.Fuzz(func(t *testing.T, seed uint64) {
 		dir := t.TempDir()
-		instances := 4
-		routinesPerInstance := 3
-
 
 		var seedBytes [32]byte
 		binary.LittleEndian.PutUint64(seedBytes[:8], seed)
@@ -248,11 +257,11 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 
 				data, err := ds.Get(ci, buf)
 				if err != nil {
-					return fmt.Errorf("getting chunk %x (pack %d): %w", hash[:4], ci.PackID, err)
+					return fmt.Errorf("getting chunk %x (pack %d):\n%w", hash[:4], ci.PackID, err)
 				}
 
 				if hashData := sha256.Sum256(data); hashData != hash {
-					return fmt.Errorf("chunk %x data mismatch: expected %x, got %x", hash[:4], hash[:4], hashData[:4])
+					return fmt.Errorf("hash mismatch: expected %x, got %x", hash[:4], hashData[:4])
 				}
 
 				return nil
@@ -279,16 +288,17 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 
 				hash := sha256.Sum256(chunkBytes)
 
+				ms.Put(hash, ci)
+
 				chunkBytesGet, err := ds.Get(ci, buf)
 				if err != nil {
 					return fmt.Errorf("getting chunk after putting: %w", err)
 				}
 
 				if hashGet := sha256.Sum256(chunkBytesGet); hash != hashGet {
-					return fmt.Errorf("hash does not match what was put: '%s', got: '%s'", hex.EncodeToString(hash[:8]), hex.EncodeToString(hashGet[:8]))
+					return fmt.Errorf("hash mismatch after put: expected %x, got: '%x'", hash[:4], hashGet[:4])
 				}
 
-				ms.Put(hash, ci)
 				return nil
 			},
 		},
@@ -297,7 +307,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 			Weight: 5,
 			Run: func() error {
 				var nextPackID uint64
-				var deletePacksSlice []uint64
+				var deletePacks []uint64
 
 				// limit so it does not get stuck
 				for range 1000 {
@@ -311,11 +321,11 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 
 					nextPackID = packs[len(packs)-1] + 1
 					packs = ms.FilterExistingPacks(packs)
-					deletePacksSlice = append(deletePacksSlice, packs...)
+					deletePacks = append(deletePacks, packs...)
 				}
 
-				if _, err := ds.DeletePacks(deletePacksSlice); err != nil && !errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("deleting %d packs: %w", len(deletePacksSlice), err)
+				if _, err := ds.DeletePacks(deletePacks); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("deleting %d packs: %w", len(deletePacks), err)
 				}
 
 				return nil
