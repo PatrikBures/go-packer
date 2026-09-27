@@ -111,7 +111,7 @@ func (h *header) WriteTo(w io.Writer) (int64, error) {
 }
 
 // Updates header in file
-func (h *header) Update(f *os.File) error {
+func (h *header) WriteAtFile(f *os.File) error {
 	data := h.Bytes()
 
 	_, err := f.WriteAt(data[:], 0)
@@ -119,18 +119,7 @@ func (h *header) Update(f *os.File) error {
 }
 
 
-// Reads header from a reader, overwriting any existing values.
-// Verifies that the checksum matches the actual content, returning ErrHeaderChecksum if not.
-func (h *header) ReadFrom(r io.Reader) (int64, error) {
-	var data [headerLen]byte
-	readBytes, err := io.ReadFull(r, data[:])
-	if err != nil {
-		return 0, err
-	}
-	if readBytes != headerLen {
-		return 0, fmt.Errorf("reader did not have enough bytes for a header. received: %d, want: %d", readBytes, headerLen)
-	}
-
+func (h *header) sliceToStruct(data []byte) error {
 	copy(h.Magic[:], data[ho0Magic:ho1MajorVersion])
 
 	h.MajorVersion = binary.LittleEndian.Uint16(data[ho1MajorVersion:ho2MinorVersion])
@@ -143,21 +132,56 @@ func (h *header) ReadFrom(r io.Reader) (int64, error) {
 
 	h.Checksum = 0
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], 0)
-	if crc32.ChecksumIEEE(data[:]) != checksum {
-		return 0, fmt.Errorf("%w: header: %s", ErrHeaderChecksum, h)
+	if crc32.ChecksumIEEE(data) != checksum {
+		return fmt.Errorf("%w: header: %s", ErrHeaderChecksum, h)
 	}
 	h.Checksum = checksum
 
 	if h.Magic != defaultHeaderMagic {
-		return 0, fmt.Errorf("%w: recieved %x, expected: %x", ErrHeaderMagic, h.Magic, defaultHeaderMagic)
+		return fmt.Errorf("%w: recieved %x, expected: %x", ErrHeaderMagic, h.Magic, defaultHeaderMagic)
 	}
 
 	if h.MajorVersion != majorVersion {
-		return 0, fmt.Errorf("%w: supports: %d, received: %d", ErrMajorVersionMissmatch, majorVersion, h.MajorVersion)
+		return fmt.Errorf("%w: supports: %d, received: %d", ErrMajorVersionMissmatch, majorVersion, h.MajorVersion)
 	}
 	if h.MinorVersion > minorVersion {
-		return 0, fmt.Errorf("%w: supports from %d, received: %d", ErrMinorVersion, minorVersion, h.MinorVersion)
+		return fmt.Errorf("%w: supports from %d, received: %d", ErrMinorVersion, minorVersion, h.MinorVersion)
+	}
+
+	return nil
+}
+
+// Reads header from a reader, overwriting any existing values.
+// Verifies that the checksum matches the actual content, returning ErrHeaderChecksum if not.
+func (h *header) ReadFrom(r io.Reader) (int64, error) {
+	// using array to preallocate a fixed array size
+	var data [headerLen]byte
+	readBytes, err := io.ReadFull(r, data[:])
+	if err != nil {
+		return 0, err
+	}
+	if readBytes != headerLen {
+		return 0, fmt.Errorf("reader did not have enough bytes for a header. received: %d, want: %d", readBytes, headerLen)
+	}
+
+	if err := h.sliceToStruct(data[:]); err != nil {
+		return 0, err
 	}
 
 	return headerLen, nil
+}
+
+func (h *header) ReadAtFile(f *os.File) error {
+	var data [headerLen]byte
+
+	readBytes, err := f.ReadAt(data[:], 0)
+	if err != nil {
+		return err
+	}
+
+	if readBytes != headerLen {
+		return fmt.Errorf("reader did not have enough bytes for a header. received: %d, want: %d", readBytes, headerLen)
+	}
+
+	return h.sliceToStruct(data[:])
 }

@@ -100,7 +100,7 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error
 
 			// increases nextPackID only if it is higher than the previous one
 			if packID <= ds.nextPackID {
-				packID++
+				ds.nextPackID++
 			}
 
 			return lock, packID, nil

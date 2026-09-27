@@ -138,7 +138,7 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 
 	h.State = stateCompleted
 
-	if err := h.Update(f); err != nil {
+	if err := h.WriteAtFile(f); err != nil {
 		return nil, nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
 	}
 

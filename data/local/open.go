@@ -95,16 +95,20 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 			return 0, fmt.Errorf("creating completed dir: %w", err)
 		}
 
-		if _, err := ds.currentPackFile.Seek(0, 0); err != nil {
-			return 0, fmt.Errorf("seeking prev pack to start: %w", err)
-		}
 		var h header
-		if _, err := h.ReadFrom(ds.currentPackFile); err != nil {
+		if err := h.ReadAtFile(ds.currentPackFile); err != nil {
 			return 0, fmt.Errorf("reading header from prev pack: %w", err)
 		}
 		h.State = stateCompleted
-		if err := h.Update(ds.currentPackFile); err != nil {
+		if err := h.WriteAtFile(ds.currentPackFile); err != nil {
 			return 0, fmt.Errorf("writing header to prev pack: %w", err)
+		}
+
+		if err := ds.currentPackFile.Sync(); err != nil {
+			return 0, fmt.Errorf("syncing prev pack: %w", err)
+		}
+		if err := ds.currentPackFile.Close(); err != nil {
+			return 0, fmt.Errorf("closing prev pack: %w", err)
 		}
 
 		if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
