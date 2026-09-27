@@ -18,9 +18,8 @@ func TestData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	offset := ds.currentPackOffset.Load()
-	if offset != headerLen {
-		t.Errorf("expected offset to be the len of header. expected: %d, received: %d", headerLen, offset)
+	if ds.currentPackOffset != headerLen {
+		t.Errorf("expected offset to be the len of header. expected: %d, received: %d", headerLen, ds.currentPackOffset)
 	}
 
 	testData := []byte("hello")

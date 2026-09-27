@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sync/atomic"
+	"sync"
 
 	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
@@ -21,10 +21,12 @@ type dataStore struct {
 	packDir string
 
 	currentPackFile   *os.File
-	currentPackOffset atomic.Int64
 	currentPackLock   *flock.Flock
+	currentPackOffset int64
 	currentPackID     uint64
-	nextPackID        atomic.Uint64 // the next pack that should be attempted to lock
+	nextPackID        uint64 // the next pack that should be attempted to lock
+
+	writePackMu       sync.Mutex
 
 	compactPackRatio float64
 	maxPackSize          int64
@@ -105,19 +107,39 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
 	}
 
+	// using defer mutex does not allow multiple writes to same pack.
+	// in the futurure, it could allocate the required data size, and then write. 
+	// that should allow multiple writes to same pack.
+	//
+	// the issue is with having just one chunk allowed to be written to a pack,
+	// is that if one user has slow upload speed, it will slow down other users 
+	// writing to the same pack. 
+	//
+	// ideally it would unlock once it allocated the chunk in the pack.
+	// or it could pre-allocate the entire pack with maxPackSize, and then trim it 
+	// once the pack becomes full and is moved to completed.
+
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
+
 	totalSize := int64(len(data) + prefixLen)
 
-	offset := ds.currentPackOffset.Add(totalSize) - totalSize
-
-	if offset+totalSize >= ds.maxPackSize {
-		newOffset, err := ds.openPackWriteNext()
-		if err != nil {
+	if ds.currentPackOffset+totalSize >= ds.maxPackSize {
+		if _, err := ds.openPackWriteNext();  err != nil {
 			return packer.ChunkInfo{}, fmt.Errorf("opening new pack as it reached maxsize: %w", err)
 		}
-		offset = newOffset
 	}
 
-	return putChunk(ds.currentPackID, data, ds.currentPackFile, offset)
+	offset := ds.currentPackOffset
+	
+	ci, err := putChunk(ds.currentPackID, data, ds.currentPackFile, offset)
+	if err != nil {
+		return packer.ChunkInfo{}, err
+	}
+
+	ds.currentPackOffset += totalSize
+
+	return ci, nil
 }
 
 // Writes data starting at offset to file. 

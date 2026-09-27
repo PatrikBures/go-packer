@@ -13,7 +13,7 @@ import (
 
 // Opens the next pack.
 func (ds *dataStore) openPackWriteNext() (int64, error) {
-	lock, packID, err := ds.lockActive(ds.nextPackID.Load())
+	lock, packID, err := ds.lockActive(ds.nextPackID)
 	if err != nil {
 		return 0, fmt.Errorf("locking active: %w", err)
 	}
@@ -115,7 +115,7 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 	ds.currentPackID = packID
 	ds.currentPackLock = lock
 	ds.currentPackFile = f
-	ds.currentPackOffset.Store(size)
+	ds.currentPackOffset = size
 
 	return size, nil
 }
