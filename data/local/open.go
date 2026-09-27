@@ -102,12 +102,8 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 		if _, err := h.ReadFrom(ds.currentPackFile); err != nil {
 			return 0, fmt.Errorf("reading header from prev pack: %w", err)
 		}
-		// ensure header is written at start of file
-		if _, err := ds.currentPackFile.Seek(0, 0); err != nil {
-			return 0, fmt.Errorf("seeking to start: %w", err)
-		}
 		h.State = stateCompleted
-		if _, err := h.WriteTo(ds.currentPackFile); err != nil {
+		if err := h.Update(ds.currentPackFile); err != nil {
 			return 0, fmt.Errorf("writing header to prev pack: %w", err)
 		}
 

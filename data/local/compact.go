@@ -136,13 +136,9 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 	compactInfo.PackBytesAdded = offset
 	compactInfo.PacksCreated = 1
 
-	// ensure header is written to start of file
-	if _, err = f.Seek(0, 0); err != nil {
-		return nil, nil, packer.CompactInfo{}, fmt.Errorf("seeking to start of pack: %w", err)
-	}
-
 	h.State = stateCompleted
-	if _, err = h.WriteTo(f); err != nil {
+
+	if err := h.Update(f); err != nil {
 		return nil, nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
 	}
 

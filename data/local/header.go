@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"os"
 )
 
 const headerLen = 128
@@ -83,9 +84,7 @@ func (f *headerFlags) Toggle(flag headerFlags) {
 	*f ^= flag
 }
 
-// Writes header to writer. Updates the checksum.
-func (h *header) WriteTo(w io.Writer) (int64, error) {
-	var data [headerLen]byte
+func (h *header) Bytes() (data [headerLen]byte) {
 	copy(data[ho0Magic:ho1MajorVersion], h.Magic[:])
 
 	binary.LittleEndian.PutUint16(data[ho1MajorVersion:ho2MinorVersion], h.MajorVersion)
@@ -100,9 +99,25 @@ func (h *header) WriteTo(w io.Writer) (int64, error) {
 	binary.LittleEndian.PutUint32(data[ho8Checksum:ho9Reserved], checksum)
 	h.Checksum = checksum
 
+	return
+}
+
+// Writes header to writer. Updates the checksum.
+func (h *header) WriteTo(w io.Writer) (int64, error) {
+	data := h.Bytes()
+
 	n, err := w.Write(data[:])
 	return int64(n), err
 }
+
+// Updates header in file
+func (h *header) Update(f *os.File) error {
+	data := h.Bytes()
+
+	_, err := f.WriteAt(data[:], 0)
+	return err
+}
+
 
 // Reads header from a reader, overwriting any existing values.
 // Verifies that the checksum matches the actual content, returning ErrHeaderChecksum if not.
