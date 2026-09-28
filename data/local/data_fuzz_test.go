@@ -151,9 +151,9 @@ func FuzzData1x3(f *testing.F) {
 	fuzzData(f, 1, 3)
 }
 
-// func FuzzData4x3(f *testing.F) {
-// 	fuzzData(f, 4, 3)
-// }
+func FuzzData4x3(f *testing.F) {
+	fuzzData(f, 4, 3)
+}
 
 func fuzzData(f *testing.F, instances int, routinesPerInstance int) {
 
@@ -226,7 +226,7 @@ func pickAndRun(actions []fuzzAction, rng *rand.Rand) error {
 	for _, a := range actions {
 		if target < a.Weight {
 			if err := a.Run(); err != nil {
-				return fmt.Errorf("running action '%s': %w", a.Name, err)
+				return fmt.Errorf("running action '%s':\n%w", a.Name, err)
 			}
 			return nil
 		}
