@@ -126,9 +126,6 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 
 // Gets file from cache. if it's not cached then opens the file and puts in cache.
 func (ds *dataStore) openPackRead(packID uint64) (f *os.File, err error) {
-	if packID == ds.currentPackID {
-		return ds.currentPackFile, nil
-	}
 	f = ds.packRead.Get(packID)
 	if f != nil {
 		return f, nil
