@@ -333,7 +333,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 		},
 	}
 
-	for i := range 100 {
+	for i := range 500 {
 		if err := pickAndRun(actions, rng); err != nil {
 			t.Errorf("action err on iter %d (seed %d): %v", i+1, seed, err)
 			return
