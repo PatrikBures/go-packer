@@ -114,6 +114,10 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (size int64, e
 		if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
 			return 0, fmt.Errorf("renaming prev pack to completed: %w", err)
 		}
+
+		if err := ds.currentPackLock.Unlock(); err != nil {
+			return 0, fmt.Errorf("unlocking prev pack: %w", err)
+		}
 	}
 
 	ds.currentPackID = packID
