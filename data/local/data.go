@@ -130,9 +130,7 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		}
 	}
 
-	offset := ds.currentPackOffset
-	
-	ci, err := putChunk(ds.currentPackID, data, ds.currentPackFile, offset)
+	ci, err := putChunk(ds.currentPackID, data, ds.currentPackFile, ds.currentPackOffset)
 	if err != nil {
 		return packer.ChunkInfo{}, err
 	}
@@ -283,9 +281,6 @@ func (ds *dataStore) PacksBatch(startPackID uint64, packs []uint64) ([]uint64, e
 			return nil
 		}); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
-		}
-		if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrExist) && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("removing remaining empty packDir: %w", err)
 		}
 	}
 
