@@ -91,16 +91,13 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error
 			continue
 		}
 
-		_, err = os.Stat(ds.completedPackPath(packID))
 
 		// returns only if the completed pack path does not exist
 		// it is checking again because it could happen that between checking the first
 		// time and locking that it got created in completed by another instance/goroutine
-		if errors.Is(err, os.ErrNotExist) {
-
-			// increases nextPackID only if it is higher than the previous one
-			if packID <= ds.nextPackID {
-				ds.nextPackID++
+		if _, err = os.Stat(ds.completedPackPath(packID)); errors.Is(err, os.ErrNotExist) {
+			if packID >= ds.nextPackID {
+				ds.nextPackID = packID+1
 			}
 
 			return lock, packID, nil
@@ -112,7 +109,7 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error
 		}
 
 		// clean up the created file in active
-		if err := os.Remove(lock.Path()); err != nil {
+		if err := os.Remove(lock.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, 0, fmt.Errorf("removing active file after finding out it already exists in completed: %w", err)
 		}
 		if err := lock.Close(); err != nil {
@@ -120,7 +117,7 @@ func (ds *dataStore) lockActive(packIDstart uint64) (*flock.Flock, uint64, error
 		}
 	}
 
-	return nil, 0, ErrLimitMaxActive
+	return nil, 0, fmt.Errorf("%w: packIDstart: %d", ErrLimitMaxActive, packIDstart)
 }
 
 // finds the latest pack in completed dir, and tries to lock any id starting from that
