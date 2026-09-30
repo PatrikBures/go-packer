@@ -137,8 +137,16 @@ func (ds *dataStore) openPackRead(packID uint64) (f *os.File, err error) {
 
 	f, err = os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
 	if errors.Is(err, os.ErrNotExist) {
+
 		f, err = os.OpenFile(ds.activePackPath(packID), os.O_RDONLY, 0664)
-		if err != nil {
+
+		// we are checking again if it exist in completed as it could have been moved there between the 2 previous checks
+		if errors.Is(err, os.ErrNotExist) {
+			f, err = os.OpenFile(ds.completedPackPath(packID), os.O_RDONLY, 0664)
+			if err != nil {
+				return nil, fmt.Errorf("opening completed pack after failing to open completed and active: %w", err)
+			}
+		} else if err != nil {
 			return nil, fmt.Errorf("opening active pack: %w", err)
 		}
 	} else if err != nil {
