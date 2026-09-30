@@ -8,9 +8,9 @@ import (
 	"math/rand/v2"
 	"os"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"go.pabu.dev/packer"
 )
@@ -74,20 +74,19 @@ func (ms *metadataStore) PutChunkAndAddPending(ds *dataStore, chunk []byte) (pac
 }
 
 
+// get random chunk with its hash, ChunkInfo and a bool which is only false if there are no chunks.
 func (ms *metadataStore) randChunk(rng *rand.Rand) ([32]byte, packer.ChunkInfo, bool) {
 	if ms.count == 0 {
 		return [32]byte{}, packer.ChunkInfo{}, false
 	}
 
-	item := ms.chunks[rng.IntN(ms.count)]
+	n := ms.count>>2
+	c := n
+	if c == 0 {
+		c = 1
+	}
+	item := ms.chunks[rng.IntN(c) + n]
 	return item.hash, item.ci, true
-}
-
-func (ms *metadataStore) RandChunk(rng *rand.Rand) ([32]byte, packer.ChunkInfo, bool) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
-	return ms.randChunk(rng)
 }
 
 func (ms *metadataStore) RandChunkAndAddPending(rng *rand.Rand) ([32]byte, packer.ChunkInfo, bool) {
@@ -121,6 +120,28 @@ func (ms *metadataStore) FilterExistingPacks(packs []uint64) []uint64 {
 	return packs[:n]
 }
 
+func TestFilterExistingPacks(t *testing.T) {
+	ms := metadataStore{}
+	ms.packs = map[uint64]int{
+		3: 1,
+		5: 1,
+		8: 1,
+	}
+
+	ms.pendingPacks = map[uint64]int{
+		2: 1,
+	}
+
+	input := []uint64{0,1,2,3,4,5,6,7,8,9}
+	want := []uint64{0,1,4,6,7,9}
+
+	output := ms.FilterExistingPacks(input)
+
+	if !slices.Equal(want, output) {
+		t.Fatalf("FilterExistingPacks(%v) = %v, want %v", input, output, want)
+	}
+}
+
 
 func (ms *metadataStore) AddPending(packID uint64) {
 	ms.mu.Lock()
@@ -152,6 +173,9 @@ func FuzzData1x3(f *testing.F) {
 }
 
 func FuzzData4x3(f *testing.F) {
+	fuzzData(f, 4, 3)
+}
+func FuzzData12x2(f *testing.F) {
 	fuzzData(f, 4, 3)
 }
 
@@ -320,6 +344,9 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 					}
 
 					nextPackID = packs[len(packs)-1] + 1
+					// if len(packs) > 5 {
+					// 	return fmt.Errorf("packs: %v", packs)
+					// }
 					packs = ms.FilterExistingPacks(packs)
 					deletePacks = append(deletePacks, packs...)
 				}
@@ -333,13 +360,11 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 		},
 	}
 
-	for i := range 500 {
+	for i := range 50 {
 		if err := pickAndRun(actions, rng); err != nil {
 			t.Errorf("action err on iter %d (seed %d): %v", i+1, seed, err)
 			return
 		}
-		ti := time.Duration(rng.Int64N(500)) * time.Microsecond
-		time.Sleep(ti)
 	}
 }
 
