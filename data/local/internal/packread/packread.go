@@ -98,6 +98,29 @@ func (pr *PackRead) GetRemovePack(packID uint64) *os.File {
 	return p.file
 }
 
+func (pr *PackRead) FilterOlderThan(packIDs []uint64, dur time.Duration) []uint64 {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	var i int
+	now := time.Now()
+
+	for _, id := range packIDs {
+		p, ok := pr.packs[id]
+		if !ok {
+			continue
+		}
+
+		diff := now.Sub(p.lastRead)
+		if diff >= dur {
+			packIDs[i] = id
+			i++
+		}
+	}
+
+	return packIDs[:i]
+}
+
 // Removes and closes every cached file.
 func (pr *PackRead) Close() {
 	pr.mu.Lock()

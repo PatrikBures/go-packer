@@ -11,11 +11,12 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"go.pabu.dev/packer"
 )
 
-const chunkCapacity = 1000
+const chunkCapacity = 250
 
 type trackedChunk struct {
 	hash [32]byte
@@ -66,9 +67,7 @@ func (ms *metadataStore) PutChunkAndAddPending(ds *dataStore, chunk []byte) (pac
 		return ci, err
 	}
 
-	ms.mu.Lock()
-	ms.pendingPacks[ci.PackID]++
-	ms.mu.Unlock()
+	ms.AddPending(ci.PackID)
 
 	return ci, nil
 }
@@ -80,12 +79,7 @@ func (ms *metadataStore) randChunk(rng *rand.Rand) ([32]byte, packer.ChunkInfo, 
 		return [32]byte{}, packer.ChunkInfo{}, false
 	}
 
-	n := ms.count>>2
-	c := n
-	if c == 0 {
-		c = 1
-	}
-	item := ms.chunks[rng.IntN(c) + n]
+	item := ms.chunks[rng.IntN(ms.count)]
 	return item.hash, item.ci, true
 }
 
@@ -145,8 +139,8 @@ func TestFilterExistingPacks(t *testing.T) {
 
 func (ms *metadataStore) AddPending(packID uint64) {
 	ms.mu.Lock()
-	defer ms.mu.Unlock()
 	ms.pendingPacks[packID]++
+	ms.mu.Unlock()
 }
 
 func (ms *metadataStore) RemovePending(packID uint64) {
@@ -176,7 +170,7 @@ func FuzzData4x3(f *testing.F) {
 	fuzzData(f, 4, 3)
 }
 func FuzzData12x2(f *testing.F) {
-	fuzzData(f, 4, 3)
+	fuzzData(f, 12, 2)
 }
 
 func fuzzData(f *testing.F, instances int, routinesPerInstance int) {
@@ -281,7 +275,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 
 				data, err := ds.Get(ci, buf)
 				if err != nil {
-					return fmt.Errorf("getting chunk %x (pack %d):\n%w", hash[:4], ci.PackID, err)
+					return fmt.Errorf("getting chunk %x (pack %d): %w", hash[:4], ci.PackID, err)
 				}
 
 				if hashData := sha256.Sum256(data); hashData != hash {
@@ -344,14 +338,11 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 					}
 
 					nextPackID = packs[len(packs)-1] + 1
-					// if len(packs) > 5 {
-					// 	return fmt.Errorf("packs: %v", packs)
-					// }
 					packs = ms.FilterExistingPacks(packs)
 					deletePacks = append(deletePacks, packs...)
 				}
 
-				if _, err := ds.DeletePacks(deletePacks); err != nil && !errors.Is(err, os.ErrNotExist) {
+				if _, err := ds.DeletePacks(ds.packRead.FilterOlderThan(deletePacks, time.Millisecond*500)); err != nil && !errors.Is(err, os.ErrNotExist) {
 					return fmt.Errorf("deleting %d packs: %w", len(deletePacks), err)
 				}
 

@@ -27,6 +27,7 @@ type DataStore interface {
 	CompactNextPack(packs []ChunkInfoWithID) ([]ChunkInfoWithID, []ChunkInfoWithID, CompactInfo, error)
 
 	// Deletes packs, returning total byte amount removed.
+	// Only use for packs that are not referenced by an existing chunk.
 	DeletePacks(packs []uint64) (int64, error)
 
 	PacksBatch(startPackID uint64, packs []uint64) ([]uint64, error)
