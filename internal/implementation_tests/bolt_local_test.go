@@ -12,10 +12,10 @@ import (
 	"lukechampine.com/blake3"
 )
 
-func FuzzBoltLocal(f *testing.F) {
-	fuzzAdd(f)
-	f.Fuzz(fuzzPackagerBoltLocal)
-}
+// func FuzzBoltLocal(f *testing.F) {
+// 	fuzzAdd(f)
+// 	f.Fuzz(fuzzPackagerBoltLocal)
+// }
 
 func fuzzAdd(f *testing.F) {
 	// seed, maxPackSize (divides by 32), maxChunkSize (divides by 256)

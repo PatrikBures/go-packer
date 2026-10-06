@@ -1,6 +1,8 @@
 package metadata
 
 import (
+	"fmt"
+
 	bolt "go.etcd.io/bbolt"
 	"go.pabu.dev/packer"
 )
@@ -17,7 +19,7 @@ func (ms *metadataStore) Get(id []byte) (packer.ChunkInfo, error) {
 
 		v := bucket.Get(id)
 		if v == nil {
-			return ErrChunkNotFound
+			return fmt.Errorf("%w: metadata", packer.ErrChunkNotFound)
 		}
 
 		vci, err := packer.BytesToChunkInfo(v)

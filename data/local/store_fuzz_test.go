@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"go.pabu.dev/packer"
+	imptests "go.pabu.dev/packer/internal/implementation_tests"
 )
 
 const chunkCapacity = 250
@@ -152,11 +153,6 @@ func (ms *metadataStore) RemovePending(packID uint64) {
 	}
 }
 
-const maxMaxChunkSize = 512<<10 // 512KiB
-const minMinChunkSize = 8<<10   // 8KiB
-const maxMaxPackSize  = 32<<20  // 32MiB
-const minMinPackSize = 1<<20    // 1MiB
-
 
 func FuzzData1x1(f *testing.F) {
 	fuzzData(f, 1, 1)
@@ -185,8 +181,8 @@ func fuzzData(f *testing.F, instances int, routinesPerInstance int) {
 		cc := rand.NewChaCha8(seedBytes)
 		rng := rand.New(cc)
 
-		maxPackSize  := rng.Int64N(maxMaxPackSize - minMinPackSize) + minMinPackSize
-		maxChunkSize := rng.Uint32N(maxMaxChunkSize - minMinChunkSize) + minMinChunkSize +1
+		maxPackSize  := rng.Int64N(imptests.MaxMaxPackSize - imptests.MinMinPackSize) + imptests.MinMinPackSize
+		maxChunkSize := rng.Uint32N(imptests.MaxMaxChunkSize - imptests.MinMinChunkSize) + imptests.MinMinChunkSize +1
 
 		stores := make([]*dataStore, 0, instances)
 		for range instances {
@@ -224,35 +220,6 @@ func fuzzData(f *testing.F, instances int, routinesPerInstance int) {
 	})
 }
 
-type fuzzAction struct {
-	Name   string
-	Weight int
-	Run    func() error
-}
-
-func pickAndRun(actions []fuzzAction, rng *rand.Rand) error {
-	totalWeigth := 0
-	for _, a := range actions {
-		totalWeigth += a.Weight
-	}
-	if totalWeigth <= 0 {
-		return nil
-	}
-
-	target := rng.IntN(totalWeigth)
-
-	for _, a := range actions {
-		if target < a.Weight {
-			if err := a.Run(); err != nil {
-				return fmt.Errorf("running action '%s':\n%w", a.Name, err)
-			}
-			return nil
-		}
-		target -= a.Weight
-	}
-
-	panic("did not run any action")
-}
 
 func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadataStore, maxChunkSize uint32) {
 	var seedBytes [32]byte
@@ -262,7 +229,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 
 	buf := make([]byte, maxChunkSize + prefixLen * 10)
 
-	actions := []fuzzAction{
+	actions := []imptests.FuzzAction{
 		{
 			Name: "Read random chunk",
 			Weight: 500,
@@ -290,7 +257,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 			Weight: 50,
 			Run: func() error {
 
-				chunkSize := rng.Uint32N(maxChunkSize - minMinChunkSize+1) + minMinChunkSize
+				chunkSize := rng.Uint32N(maxChunkSize - imptests.MinMinChunkSize+1) + imptests.MinMinChunkSize
 				chunkBytes := buf[:chunkSize]
 
 				if _, err := cc.Read(chunkBytes); err != nil {
@@ -352,7 +319,7 @@ func fuzzDataRandomActions(t *testing.T, ds *dataStore, seed uint64, ms *metadat
 	}
 
 	for i := range 50 {
-		if err := pickAndRun(actions, rng); err != nil {
+		if err := imptests.PickAndRunAction(actions, rng); err != nil {
 			t.Errorf("action err on iter %d (seed %d): %v", i+1, seed, err)
 			return
 		}

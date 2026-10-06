@@ -9,17 +9,23 @@ type MetadataStore interface {
 
 	Close() error
 
+	// Puts or updates a chunk.
 	Put(id []byte, ci ChunkInfo) error
+
+	// Puts or updates multiple chunks.
+	PutChunks(chunks []ChunkInfoWithID) error
 
 	Get(id []byte) (ChunkInfo, error)
 
+	// Check if a chunk with id exists.
 	Exists(id []byte) (bool, error)
 
 	Delete(id [][]byte) error
 
-	// Returns packs that are in any of the provided packIDs.
+	// Get packs that are in any of the provided packIDs.
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
 
+	// Get all chunk IDs
 	ChunkIDsAll() ([][]byte, error)
 
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
@@ -27,8 +33,6 @@ type MetadataStore interface {
 	PackInfoAll() (map[uint64]PackInfo, error)
 
 	ChunksForPacks(packs map[uint64]PackInfo) ([]ChunkInfoWithID, error)
-
-	UpdateChunks(chunks []ChunkInfoWithID) error
 
 	// Removes packIDs which do not exist, returning the updated slice.
 	FilterExistingPacks(packs []uint64) ([]uint64, error)	

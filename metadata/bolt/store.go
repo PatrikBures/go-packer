@@ -12,7 +12,11 @@ import (
 
 type metadataStore struct {
 	db      *bolt.DB
-	bufPool sync.Pool
+
+	// TODO: Remove buf as small buffers like this are not worth
+	// it for the overhead. pools are more made for bigger data
+	// like 4KiB or more.
+	bufPool sync.Pool // stores 64 bytes in each buf
 }
 
 func Init(dbPath string) (*metadataStore, error) {

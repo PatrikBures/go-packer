@@ -5,9 +5,28 @@ import (
 	"testing"
 
 	bolt "go.etcd.io/bbolt"
+	"go.pabu.dev/packer"
+	"go.pabu.dev/packer/metadata/metadatatest"
 )
 
-func TestInit(t *testing.T) {
+func TestSuite(t *testing.T) {
+	metadatatest.RunSuite(t, initBoltP)
+}
+
+
+func initBoltP(t *testing.T) packer.MetadataStore {
+	tempDir := t.TempDir()
+	dbFile := filepath.Join(tempDir, "bolt.db")
+
+	ms, err := Init(dbFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return ms
+}
+
+func initBolt(t *testing.T) *metadataStore {
 	tempDir := t.TempDir()
 	dbFile := filepath.Join(tempDir, "bolt.db")
 
@@ -19,6 +38,13 @@ func TestInit(t *testing.T) {
 	if ms.db == nil {
 		t.Fatal("db is nil")
 	}
+
+	return ms
+}
+
+func TestInit(t *testing.T) {
+
+	ms := initBolt(t)
 
 	if err := ms.db.View(func(tx *bolt.Tx) error {
 		version, err := ms.version()

@@ -53,7 +53,7 @@ func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
 		if cb == nil {
 			return ErrBucketNotFound
 		}
-		return cb.ForEach(func(k, v []byte) error {
+		return cb.ForEach(func(k, _ []byte) error {
 			chunkIDs = append(chunkIDs, k)
 			return nil
 		})
@@ -163,9 +163,8 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]pac
 	slices.SortFunc(chunks, func(a packer.ChunkInfoWithID, b packer.ChunkInfoWithID) int {
 		if a.PackID < b.PackID {
 			return -1
-		} else {
-			return 1
 		}
+		return 1
 	})
 
 	return chunks, nil
@@ -182,10 +181,11 @@ func (ms *metadataStore) FilterExistingPacks(packs []uint64) ([]uint64, error) {
 		buf := ms.getPool()
 		defer ms.putPool(buf)
 
+		packIDBytes := buf[:8]
 		for _, packID := range packs {
-			binary.LittleEndian.PutUint64(buf, packID)
+			binary.LittleEndian.PutUint64(packIDBytes, packID)
 
-			if pb.Get(buf[:8]) == nil {
+			if pb.Get(packIDBytes) == nil {
 				packs[n] = packID
 				n++
 			}

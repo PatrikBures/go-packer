@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	bolt "go.etcd.io/bbolt"
 	"go.pabu.dev/packer"
@@ -13,16 +14,12 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 		if bc == nil {
 			return ErrBucketNotFound
 		}
-
 		bp := tx.Bucket(bucketPacks)
 		if bp == nil {
 			return ErrBucketNotFound
 		}
 
-		buf := ms.getPool()
-		defer ms.putPool(buf)
-
-		return addChunk(bc, bp, buf, id, ci)
+		return addChunk(bc, bp, id, ci)
 
 	}); err != nil {
 		return err
@@ -31,7 +28,7 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 	return nil
 }
 
-func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
+func (ms *metadataStore) PutChunks(chunks []packer.ChunkInfoWithID) error {
 	return ms.db.Update(func(tx *bolt.Tx) error {
 		bc := tx.Bucket(bucketChunks)
 		if bc == nil {
@@ -42,11 +39,8 @@ func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
 			return ErrBucketNotFound
 		}
 
-		buf := ms.getPool()
-		defer ms.putPool(buf)
-
 		for _, ci := range chunks {
-			if err := addChunk(bc, bp, buf, ci.Id, ci.ChunkInfo); err != nil {
+			if err := addChunk(bc, bp, ci.Id, ci.ChunkInfo); err != nil {
 				return err
 			}
 		}
@@ -57,11 +51,12 @@ func (ms *metadataStore) UpdateChunks(chunks []packer.ChunkInfoWithID) error {
 // Puts chunk and puts pack increasing the refcount.
 // If the chunk already exists, and its existing packID differs from the new one,
 // its refcount is reduced, if the refcount would become negative, that pack is deleted.
-func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, buf []byte, id []byte, ci packer.ChunkInfo) error {
-	packIDBytes := buf[:8]
-	binary.LittleEndian.PutUint64(packIDBytes, ci.PackID)
+func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) error {
 
-	refsBytes := bp.Get(packIDBytes)
+	var packIDBuf[8]byte
+	binary.LittleEndian.PutUint64(packIDBuf[:], ci.PackID)
+
+	refsBytes := bp.Get(packIDBuf[:])
 	var refs uint32
 	if refsBytes != nil {
 		refs = binary.LittleEndian.Uint32(refsBytes)
@@ -69,37 +64,54 @@ func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, buf []byte, id []byte, ci packer
 	existingChunkBytes := bc.Get(id)
 	if len(existingChunkBytes) == 20 {
 
-		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes[:8])
+		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes)
 
+		// if existing pack id differs from provided one.
+		// it reduces the ref count by one, if it would become zero, it deletes that pack.
 		if existingPackID != ci.PackID {
-			existingPackIDBytes := buf[32:40]
-			binary.LittleEndian.PutUint64(existingPackIDBytes, existingPackID)
+			var existingPackIDBuf [8]byte
+			binary.LittleEndian.PutUint64(existingPackIDBuf[:], existingPackID)
 
-			existingRefsBytes := bp.Get(existingPackIDBytes)
-			existingRefs := binary.LittleEndian.Uint32(existingRefsBytes)
+			existingRefsBytesReceived := bp.Get(existingPackIDBuf[:])
+			if existingRefsBytesReceived == nil {
+				return fmt.Errorf("pack not found: %d", existingPackID)
+			}
+			existingRefs := binary.LittleEndian.Uint32(existingRefsBytesReceived)
 
 			if existingRefs == 1 {
-				if err := bp.Delete(existingPackIDBytes); err != nil {
+				if err := bp.Delete(existingPackIDBuf[:]); err != nil {
 					return err
 				}
 			} else {
-				binary.LittleEndian.PutUint32(existingRefsBytes, existingRefs-1)
-				if err := bp.Put(existingPackIDBytes, existingRefsBytes); err != nil {
+				decBuf := make([]byte, 12)
+
+				decPackID := decBuf[:8]
+				binary.LittleEndian.PutUint64(decPackID, existingPackID)
+
+				decRefs := decBuf[8:12]
+				binary.LittleEndian.PutUint32(decRefs, existingRefs-1)
+
+				if err := bp.Put(decPackID, decRefs); err != nil {
 					return err
 				}
 			}
 		}
 	}
 
-	newRefsBytes := buf[8:12]
-	binary.LittleEndian.PutUint32(newRefsBytes, refs+1)
+	packBuf := make([]byte, 12)
 
-	if err := bp.Put(packIDBytes, newRefsBytes); err != nil {
+	packIDKey := packIDBuf[:8]
+	binary.LittleEndian.PutUint64(packIDKey, ci.PackID)
+
+	newRefsVal := packBuf[8:12]
+	binary.LittleEndian.PutUint32(newRefsVal, refs+1)
+
+	if err := bp.Put(packIDKey, newRefsVal); err != nil {
 		return err
 	}
 
-	chunkInfoBytes := buf[12:32]
-	ci.PutBytes(buf[12:32])
+	chunkInfoVal := make([]byte, 20)
+	ci.PutBytes(chunkInfoVal)
 
-	return bc.Put(id, chunkInfoBytes)
+	return bc.Put(id, chunkInfoVal)
 }

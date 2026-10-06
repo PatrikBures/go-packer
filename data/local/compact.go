@@ -85,6 +85,10 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 
 	completedPath := ds.completedPackPath(packID)
 
+	if err := os.MkdirAll(filepath.Dir(completedPath), 0775); err != nil {
+		return nil, nil, packer.CompactInfo{}, err
+	}
+
 	if err = os.Rename(lock.Path(), completedPath); err != nil {
 		_ = os.Remove(lock.Path())
 		err = fmt.Errorf("moving pack to completed: %w", err)
@@ -140,11 +144,6 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 
 	if err := h.WriteAtFile(f); err != nil {
 		return nil, nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
-	}
-
-	newPath := ds.completedPackPath(packID)
-	if err := os.MkdirAll(filepath.Dir(newPath), 0775); err != nil {
-		return nil, nil, packer.CompactInfo{}, err
 	}
 
 	if err = f.Sync(); err != nil {
