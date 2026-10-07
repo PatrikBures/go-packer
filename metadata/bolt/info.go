@@ -9,9 +9,6 @@ import (
 )
 
 func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
-	buf := ms.getPool()
-	defer ms.putPool(buf)
-
 	packsMap := sliceToMapUint64(packIDs)
 
 	chunks := make([]packer.ChunkInfo, 0, 128)
@@ -61,9 +58,6 @@ func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
 }
 
 func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
-	buf := ms.getPool()
-	defer ms.putPool(buf)
-
 	packInfos := make(map[uint64]packer.PackInfo)
 
 	packsMap := sliceToMapUint64(packIDs)
@@ -178,14 +172,12 @@ func (ms *metadataStore) FilterExistingPacks(packs []uint64) ([]uint64, error) {
 			return ErrBucketNotFound
 		}
 
-		buf := ms.getPool()
-		defer ms.putPool(buf)
+		var packIDBytes [8]byte
 
-		packIDBytes := buf[:8]
 		for _, packID := range packs {
-			binary.LittleEndian.PutUint64(packIDBytes, packID)
+			binary.LittleEndian.PutUint64(packIDBytes[:], packID)
 
-			if pb.Get(packIDBytes) == nil {
+			if pb.Get(packIDBytes[:]) == nil {
 				packs[n] = packID
 				n++
 			}
