@@ -98,7 +98,7 @@ func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) 
 		}
 	}
 
-	packBuf := make([]byte, 12)
+	packBuf := make([]byte, 32)
 
 	packIDKey := packIDBuf[:8]
 	binary.LittleEndian.PutUint64(packIDKey, ci.PackID)
@@ -110,7 +110,7 @@ func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) 
 		return err
 	}
 
-	chunkInfoVal := make([]byte, 20)
+	chunkInfoVal := packBuf[12:32]
 	ci.PutBytes(chunkInfoVal)
 
 	return bc.Put(id, chunkInfoVal)
