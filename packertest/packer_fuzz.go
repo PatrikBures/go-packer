@@ -1,74 +1,40 @@
-package imptests
+package packertest
 
 import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"math/rand/v2"
-	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
 
 	"go.pabu.dev/packer"
-	data "go.pabu.dev/packer/data/local"
-	"go.pabu.dev/packer/metadata/bolt"
 )
 
 
-// func FuzzPacker(f *testing.F) {
-//
-// 	f.Add(uint64(123))
-//
-// 	f.Fuzz(func(t *testing.T, seed uint64) {
-// 		RunRandomActions(t, RunRandomActionsConfig{
-// 			instances: 1, // bbolt supports only one read/write instance
-// 			routinesPerInstance: 4,
-// 			actionQty: 100,
-// 			seed: seed,
-// 			initPackager: InitBoltAndLocalPackager,
-// 		})
-// 	})
-// }
-
-func InitBoltAndLocalPackager(dir string, maxPackSize int) (*packer.Packager, error) {
-	dbPath := filepath.Join(dir, "metadata.db")
-
-	ms, err := metadata.Init(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed initializing bolt metadataStore: %w", err)
-	}
-
-	ds, err := data.Init(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed initializing local dataStore: %w", err)
-	}
-
-	return packer.New(ms, ds), nil
-}
-
 type RunRandomActionsConfig struct {
-	instances           int
-	routinesPerInstance int
-	actionQty           int
-	seed                uint64
-	initPackager        func(dir string, maxPackSize int) (*packer.Packager, error)
+	Instances           int
+	RoutinesPerInstance int
+	ActionQty           int
+	Seed                uint64
+	InitPackager        func(dir string, maxPackSize int) (*packer.Packager, error)
 }
 
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := t.TempDir()
 
 	var seedBytes [32]byte
-	binary.LittleEndian.PutUint64(seedBytes[:8], conf.seed)
+	binary.LittleEndian.PutUint64(seedBytes[:8], conf.Seed)
 	cc := rand.NewChaCha8(seedBytes)
 	rng := rand.New(cc)
 
 	maxPackSize  := rng.IntN(MaxMaxPackSize - MinMinPackSize) + MinMinPackSize
 	maxChunkSize := rng.Uint32N(MaxMaxChunkSize - MinMinChunkSize) + MinMinChunkSize +1
 
-	packagers := make([]*packer.Packager, 0, conf.instances)
-	for i := range conf.instances {
-		p, err := conf.initPackager(root, maxPackSize)
+	packagers := make([]*packer.Packager, 0, conf.Instances)
+	for i := range conf.Instances {
+		p, err := conf.InitPackager(root, maxPackSize)
 		if err != nil {
 			t.Fatalf("initializing packager idx %d: %v", i, err)
 		}
@@ -76,7 +42,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	}
 	var wg sync.WaitGroup
 	for _, p := range packagers {
-		for range conf.routinesPerInstance {
+		for range conf.RoutinesPerInstance {
 			subSeed := rng.Uint64()
 			wg.Add(1)
 
@@ -89,7 +55,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 					}
 				}()
 
-				RunRoutineActions(t, subSeed, p, maxChunkSize, conf.actionQty)
+				RunRoutineActions(t, subSeed, p, maxChunkSize, conf.ActionQty)
 			}()
 		}
 	}

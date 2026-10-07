@@ -1,4 +1,4 @@
-package imptests
+package packertest
 
 import (
 	"fmt"
