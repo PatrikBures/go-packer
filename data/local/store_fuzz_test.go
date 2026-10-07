@@ -23,9 +23,7 @@ func FuzzData12x2(f *testing.F) {
 	datatest.FuzzData(f, initData, 12, 2)
 }
 
-func initData(t *testing.T, maxPackSize int64) packer.DataStore {
-	dir := t.TempDir()
-
+func initData(t *testing.T, dir string, maxPackSize int64) packer.DataStore {
 	ds, err := Init(dir, WithMaxPackSize(maxPackSize))
 	if err != nil {
 		t.Fatal(err)

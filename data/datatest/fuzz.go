@@ -129,7 +129,7 @@ func (ms *metadataStore) RemovePending(packID uint64) {
 }
 
 
-type StoreFactory func(t *testing.T, maxPackSize int64) packer.DataStore
+type StoreFactory func(t *testing.T, dir string, maxPackSize int64) packer.DataStore
 
 
 func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInstance int) {
@@ -137,6 +137,8 @@ func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInst
 	f.Add(uint64(112233))
 
 	f.Fuzz(func(t *testing.T, seed uint64) {
+		dir := t.TempDir()
+
 		var seedBytes [32]byte
 		binary.LittleEndian.PutUint64(seedBytes[:8], seed)
 		cc := rand.NewChaCha8(seedBytes)
@@ -147,7 +149,7 @@ func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInst
 
 		stores := make([]packer.DataStore, 0, instances)
 		for range instances {
-			ds := factory(t, maxPackSize)
+			ds := factory(t, dir, maxPackSize)
 			stores = append(stores, ds)
 		}
 
