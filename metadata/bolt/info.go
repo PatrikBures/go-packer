@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"bytes"
 	"encoding/binary"
 	"slices"
 
@@ -51,7 +52,7 @@ func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
 			return ErrBucketNotFound
 		}
 		return cb.ForEach(func(k, _ []byte) error {
-			chunkIDs = append(chunkIDs, k)
+			chunkIDs = append(chunkIDs, bytes.Clone(k))
 			return nil
 		})
 	})
