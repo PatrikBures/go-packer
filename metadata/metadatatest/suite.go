@@ -30,6 +30,10 @@ func RunSuite(t *testing.T, factory StoreFactory) {
 			name: "Delete",
 			run: testDelete,
 		},
+		{
+			name: "UpdateChunk",
+			run: testUpdateChunk,
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,6 +117,67 @@ func testDelete(t *testing.T, ms packer.MetadataStore) {
 	}
 
 	chunksExist(t, ms, deleteIds, false, "after deletion")
+}
+
+func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
+
+	chunk := packer.ChunkInfoWithID{
+		Id: []byte("hello there"),
+		ChunkInfo: packer.ChunkInfo{
+			PackID: 1,
+			Offset: 2,
+			SizeBytes: 1,
+		},
+	}
+
+	if err := ms.Put(chunk.Id, chunk.ChunkInfo); err != nil {
+		t.Fatal(err)
+	}
+
+	newCI, err := ms.Get(chunk.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if newCI != chunk.ChunkInfo {
+		t.Fatalf("want ci: %+v\nreceived: %+v", chunk.ChunkInfo, newCI)
+	}
+
+
+	pi, err := ms.PackInfo([]uint64{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if pi[1].ChunkCount != 1 {
+		t.Fatal("expected chunk count to be 1 for pack 1, received: %d", pi[1].ChunkCount)
+	}
+
+
+	chunk.PackID = 2
+
+	if err := ms.Put(chunk.Id, chunk.ChunkInfo); err != nil {
+		t.Fatal(err)
+	}
+
+	newCI, err = ms.Get(chunk.Id)
+
+	if newCI != chunk.ChunkInfo {
+		t.Fatalf("want ci: %+v\nreceived: %+v", chunk.ChunkInfo, newCI)
+	}
+
+	pi, err = ms.PackInfo([]uint64{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := pi[1]; ok {
+		t.Fatal("expected pack 1 to not exist")
+	}
+
+	if pi[2].ChunkCount != 1 {
+		t.Fatal("expected chunk count to be 1 for pack 2, received: %d", pi[2].ChunkCount)
+	}
 }
 
 func chunksExist(t *testing.T, ms packer.MetadataStore, ids [][]byte, shouldExist bool, msg string) {
