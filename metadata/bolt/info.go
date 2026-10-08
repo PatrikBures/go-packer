@@ -102,7 +102,7 @@ func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
 			return ErrBucketNotFound
 		}
 
-		return cb.ForEach(func(k, v []byte) error {
+		return cb.ForEach(func(_, v []byte) error {
 			if len(v) < packer.ChunkInfoSize {
 				return nil
 			}

@@ -147,7 +147,7 @@ func (ds *dataStore) openPackRead(packID uint64) (f *os.File, err error) {
 		if i < len(paths)-1 && errors.Is(err, os.ErrNotExist) {
 			continue
 		} else if err != nil {
-			return nil, fmt.Errorf("opening read pack %d: %w", i, err)
+			return nil, fmt.Errorf("opening read pack %s: %w", paths[i], err)
 		}
 		break
 	}

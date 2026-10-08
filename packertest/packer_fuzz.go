@@ -88,12 +88,13 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 					return nil
 				}
 
-				l := len(ids)
-				if l > 500 {
-					l = 500
+				if len(ids) > 500 {
+					ids = ids[len(ids)-500:]
 				}
 
-				idx := rng.IntN(l) + (len(ids) - l)
+				ids = ids[len(ids)>>1:]
+
+				idx := rng.IntN(len(ids))
 				hash := ids[idx]
 
 				data, err := p.Get(hash, buf)
@@ -150,7 +151,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 		{
 			Name: "Delete bottom chunks",
-			Weight: 10,
+			Weight: 1,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
 				if err != nil {

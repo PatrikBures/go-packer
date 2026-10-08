@@ -114,6 +114,8 @@ func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
 	return chunks, nil
 }
 
+// Takes chunks from chunks and if the sizes are enough it creates a new pack with them.
+//
 // The returned slice should be passed again to this method in a loop.
 // It should break out of the loop when CompactInfo.PacksCreated = 0.
 func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error) {
