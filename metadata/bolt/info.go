@@ -145,7 +145,7 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]pac
 			ci, _ := packer.BytesToChunkInfo(v)
 			ciw := packer.ChunkInfoWithID{
 				ChunkInfo: ci,
-				Id:        k,
+				Id:        bytes.Clone(k),
 			}
 
 			chunks = append(chunks, ciw)

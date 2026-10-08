@@ -19,7 +19,7 @@ func (ms *metadataStore) Get(id []byte) (packer.ChunkInfo, error) {
 
 		v := bucket.Get(id)
 		if v == nil {
-			return fmt.Errorf("%w: metadata", packer.ErrChunkNotFound)
+			return fmt.Errorf("%w: metadataStore %x", packer.ErrChunkNotFound, id)
 		}
 
 		vci, err := packer.BytesToChunkInfo(v)

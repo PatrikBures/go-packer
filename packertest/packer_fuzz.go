@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -24,10 +25,7 @@ type RunRandomActionsConfig struct {
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := t.TempDir()
 
-	var seedBytes [32]byte
-	binary.LittleEndian.PutUint64(seedBytes[:8], conf.Seed)
-	cc := rand.NewChaCha8(seedBytes)
-	rng := rand.New(cc)
+	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
 	maxPackSize  := rng.IntN(MaxMaxPackSize - MinMinPackSize) + MinMinPackSize
 	maxChunkSize := rng.Uint32N(MaxMaxChunkSize - MinMinChunkSize) + MinMinChunkSize +1
@@ -61,6 +59,12 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	}
 
 	wg.Wait()
+
+	for _, p := range packagers {
+		if err := p.Close(); err != nil {
+			t.Fatalf("closing packager: %w", err)
+		}
+	}
 }
 
 func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSize uint32, actionQty int) {
@@ -74,7 +78,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 	actions := []FuzzAction{
 		{
 			Name: "Read random chunk",
-			Weight: 500,
+			Weight: 200,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
 				if err != nil {
@@ -84,16 +88,12 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 					return nil
 				}
 
-				fourth := len(ids) >> 2
-				if fourth < 1 {
-					fourth = 1
-				}
-				add := fourth * 3
-				if add > len(ids)-1 {
-					add = len(ids)-1
+				l := len(ids)
+				if l > 500 {
+					l = 500
 				}
 
-				idx := rng.IntN(fourth) + (add)
+				idx := rng.IntN(l) + (len(ids) - l)
 				hash := ids[idx]
 
 				data, err := p.Get(hash, buf)
@@ -104,11 +104,17 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 				hashReceived := sha256.Sum256(data)
 
 				if !slices.Equal(hash, hashReceived[:]) {
-					idsString := make([]string, 0, len(ids))
-					for _, id := range ids {
+					l := len(ids)
+					if l > 3 {
+						l = 3
+					}
+
+					idsString := make([]string, 0, l)
+					for _, id := range ids[:l] {
 						idsString = append(idsString, fmt.Sprintf("%x", id))
 					}
-					return fmt.Errorf("content of hash %x does not match, received: %x, idx: %d, len: %d\nids: %+v", hash, hashReceived, idx, len(ids), idsString)
+					idsStringSep := strings.Join(idsString, "\n")
+					return fmt.Errorf("content of hash %x does not match, received: %x, idx: %d, len: %d\nids:\n%s", hash, hashReceived, idx, len(ids), idsStringSep)
 				}
 
 				return nil
@@ -140,6 +146,36 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 				}
 
 				return nil
+			},
+		},
+		{
+			Name: "Delete bottom chunks",
+			Weight: 10,
+			Run: func() error {
+				ids, err := p.ChunkIDsAll()
+				if err != nil {
+					return err
+				}
+				if len(ids) == 0 {
+					return nil
+				}
+
+				limit := 1000
+				if len(ids) < limit {
+					return nil
+				}
+
+				deleteIds := ids[:len(ids)-1000]
+
+				return p.Delete(deleteIds)
+			},
+		},
+		{
+			Name: "Compact",
+			Weight: 1,
+			Run: func() error {
+				_, err := p.Compact()
+				return err
 			},
 		},
 	}
