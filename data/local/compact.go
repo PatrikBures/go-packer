@@ -39,14 +39,22 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 		}
 		size = stat.Size()
 	} else {
-		stat, err := os.Stat(ds.completedPackPath(packID))
-		if errors.Is(err, os.ErrNotExist) {
-			stat, err = os.Stat(ds.activePackPath(packID))
+		paths := []string{
+			ds.completedPackPath(packID),
+			ds.activePackPath(packID),
+			ds.completedPackPath(packID),
 		}
-		if err != nil {
-			return false, fmt.Errorf("getting stat of pack: %w", err)
+		for i, p := range paths {
+			stat, err := os.Stat(p)
+
+			if i < len(paths)-1 && errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				return false, fmt.Errorf("stating pack %s: %w", paths[i], err)
+			}
+			size = stat.Size()
+			break
 		}
-		size = stat.Size()
 	}
 	return float64(size) / float64(pack.ChunkTotalSize) >= ds.compactPackRatio, nil
 }
