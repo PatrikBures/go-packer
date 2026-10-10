@@ -181,7 +181,7 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 		if len(packs) > 0 {
 			packs = packs[:0]
 		}
-		packs, err = p.dataStore.PacksBatch(nextPackID, packs)
+		packs, err = p.metadataStore.PacksDeleteBatch()
 		if err != nil {
 			return CompactInfo{}, err
 		}
@@ -189,11 +189,6 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 			break
 		}
 		nextPackID = packs[len(packs)-1] + 1
-
-		packs, err = p.metadataStore.FilterExistingPacks(packs)
-		if err != nil {
-			return CompactInfo{}, err
-		}
 
 		bytesRemoved, err := p.dataStore.DeletePacks(packs)
 		if err != nil {

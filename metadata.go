@@ -36,6 +36,10 @@ type MetadataStore interface {
 
 	// Removes packIDs which do not exist, returning the updated slice.
 	FilterExistingPacks(packs []uint64) ([]uint64, error)	
+
+	// Returns a batch of packIDs that should be deleted.
+	// A pack should be deleted if there are no chunks in it.
+	PacksDeleteBatch() ([]uint64, error)
 }
 
 const ChunkInfoSize = 20

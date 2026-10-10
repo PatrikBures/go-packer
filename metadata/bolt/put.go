@@ -11,19 +11,14 @@ import (
 
 func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 	if err := ms.db.Update(func(tx *bolt.Tx) error {
-		bc := tx.Bucket(bucketChunks)
-		if bc == nil {
-			return ErrBucketNotFound
+		buckets, err := openAddChunkBuckets(tx)
+		if err != nil {
+			return err
 		}
-		bp := tx.Bucket(bucketPacks)
-		if bp == nil {
-			return ErrBucketNotFound
-		}
-
-		return addChunk(bc, bp, id, ci)
+		return addChunk(buckets, id, ci)
 
 	}); err != nil {
-		return err
+		return fmt.Errorf("adding chunk: %w", err)
 	}
 
 	return nil
@@ -31,75 +26,65 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 
 func (ms *metadataStore) PutChunks(chunks []packer.ChunkInfoWithID) error {
 	return ms.db.Update(func(tx *bolt.Tx) error {
-		bc := tx.Bucket(bucketChunks)
-		if bc == nil {
-			return ErrBucketNotFound
-		}
-		bp := tx.Bucket(bucketPacks)
-		if bp == nil {
-			return ErrBucketNotFound
-		}
-
-		for _, ci := range chunks {
-			if err := addChunk(bc, bp, ci.Id, ci.ChunkInfo); err != nil {
+		for i, ci := range chunks {
+			buckets, err := openAddChunkBuckets(tx)
+			if err != nil {
 				return err
+			}
+			if err := addChunk(buckets, ci.Id, ci.ChunkInfo); err != nil {
+				return fmt.Errorf("adding chunk %d/%d: %w", i+1, len(chunks), err)
 			}
 		}
 		return nil
 	})
 }
 
+type addChunkBuckets struct {
+	chunks      *bolt.Bucket
+	packs       *bolt.Bucket
+	packsDelete *bolt.Bucket
+}
+
+func openAddChunkBuckets(tx *bolt.Tx) (*addChunkBuckets, error) {
+	chunks := tx.Bucket(bucketChunks)
+	if chunks == nil {
+		return nil, fmt.Errorf("%w: %s", ErrBucketNotFound, bucketChunks)
+	}
+	packs := tx.Bucket(bucketPacks)
+	if packs == nil {
+		return nil, fmt.Errorf("%w: %s", ErrBucketNotFound, bucketPacks)
+	}
+	packsDelete := tx.Bucket(bucketPacksDelete)
+	if packsDelete == nil {
+		return nil, fmt.Errorf("%w: %s", ErrBucketNotFound, bucketPacksDelete)
+	}
+
+	return &addChunkBuckets{
+		chunks:      chunks,
+		packs:       packs,
+		packsDelete: packsDelete,
+	}, nil
+}
+
 // Puts chunk and puts pack increasing the refcount.
 // If the chunk already exists, and its existing packID differs from the new one,
 // its refcount is reduced, if the refcount would become negative, that pack is deleted.
-func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) error {
+//
+// it does not open the buckets, as this functions is also used in a loop.
+// if it would open the buckets it would then do it each iteration.
+func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 
 	var packIDKey [8]byte
 	binary.LittleEndian.PutUint64(packIDKey[:], ci.PackID)
 
-	existingChunkBytes := bc.Get(id)
+	existingChunkBytes := bucket.chunks.Get(id)
 
 	if existingChunkBytes != nil {
 		if len(existingChunkBytes) != packer.ChunkInfoSize {
 			return fmt.Errorf("invalid chunk info, id: %x, len: %d, want len: %d", id, len(existingChunkBytes), packer.ChunkInfoSize)
 		}
-
-		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes)
-
-		var want [packer.ChunkInfoSize]byte
-		ci.PutBytes(want[:])
-		// nothing to do if chunk already exists and packID is same
-		if existingPackID == ci.PackID && bytes.Equal(existingChunkBytes, want[:]) {
-			return nil
-		}
-
-		var existingPackIDKey [8]byte
-		binary.LittleEndian.PutUint64(existingPackIDKey[:], existingPackID)
-
-		existingRefsBytesReceived := bp.Get(existingPackIDKey[:])
-		if existingRefsBytesReceived == nil {
-			return fmt.Errorf("pack not found: %d", existingPackID)
-		}
-		if len(existingRefsBytesReceived) != 4 {
-			return fmt.Errorf("invalid refcount len %d for pack %d", len(existingRefsBytesReceived), existingPackID)
-		}
-		existingRefs := binary.LittleEndian.Uint32(existingRefsBytesReceived)
-
-		switch {
-		case existingRefs == 0:
-			return fmt.Errorf("invalid refcount %d for pack %d", existingRefs, existingPackID)
-		case existingRefs == 1:
-			fmt.Printf("TESTING, deleting packID: %d\n", existingPackID)
-			if err := bp.Delete(existingPackIDKey[:]); err != nil {
-				return err
-			}
-		default:
-			var decRefs [4]byte
-			binary.LittleEndian.PutUint32(decRefs[:], existingRefs-1)
-
-			if err := bp.Put(existingPackIDKey[:], decRefs[:]); err != nil {
-				return err
-			}
+		if err := addChunkUpdateExistingPack(bucket, ci, existingChunkBytes); err != nil {
+			return fmt.Errorf("updating existing pack: %w", err)
 		}
 	}
 
@@ -108,7 +93,7 @@ func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) 
 		infoVal [packer.ChunkInfoSize]byte
 	)
 
-	refsBytes := bp.Get(packIDKey[:])
+	refsBytes := bucket.packs.Get(packIDKey[:])
 	var refs uint32
 	if refsBytes != nil {
 		if len(refsBytes) != 4 {
@@ -120,9 +105,59 @@ func addChunk(bc *bolt.Bucket, bp *bolt.Bucket, id []byte, ci packer.ChunkInfo) 
 	binary.LittleEndian.PutUint32(refsVal[:], refs+1)
 	ci.PutBytes(infoVal[:])
 
-	if err := bp.Put(packIDKey[:], refsVal[:]); err != nil {
-		return err
+	if err := bucket.packs.Put(packIDKey[:], refsVal[:]); err != nil {
+		return fmt.Errorf("updating pack %d refs: %w", ci.PackID, err)
 	}
 
-	return bc.Put(id, infoVal[:])
+	if err := bucket.chunks.Put(id, infoVal[:]); err != nil {
+		return fmt.Errorf("adding chunk: %w", err)
+	}
+
+	return nil
+}
+
+func addChunkUpdateExistingPack(bucket *addChunkBuckets, ci packer.ChunkInfo, existingChunkBytes []byte) error {
+
+	existingPackID := binary.LittleEndian.Uint64(existingChunkBytes)
+
+	var want [packer.ChunkInfoSize]byte
+	ci.PutBytes(want[:])
+	// nothing to do if chunk already exists and packID is same
+	if existingPackID == ci.PackID && bytes.Equal(existingChunkBytes, want[:]) {
+		return nil
+	}
+
+	var existingPackIDKey [8]byte
+	binary.LittleEndian.PutUint64(existingPackIDKey[:], existingPackID)
+
+	existingRefsBytesReceived := bucket.packs.Get(existingPackIDKey[:])
+	if existingRefsBytesReceived == nil {
+		return fmt.Errorf("pack not found: %d", existingPackID)
+	}
+	if len(existingRefsBytesReceived) != 4 {
+		return fmt.Errorf("invalid refcount len %d for pack %d", len(existingRefsBytesReceived), existingPackID)
+	}
+	existingRefs := binary.LittleEndian.Uint32(existingRefsBytesReceived)
+
+	switch {
+	case existingRefs == 0:
+		return fmt.Errorf("invalid refcount %d for pack %d", existingRefs, existingPackID)
+	case existingRefs == 1:
+		fmt.Printf("TESTING, deleting packID: %d\n", existingPackID)
+		if err := bucket.packs.Delete(existingPackIDKey[:]); err != nil {
+			return fmt.Errorf("deleting unreferenced pack %d: %w", existingPackID, err)
+		}
+		if err := bucket.packsDelete.Put(existingPackIDKey[:], []byte{}); err != nil {
+			return fmt.Errorf("adding deleted pack %d to pending: %w", existingPackID, err)
+		}
+	default:
+		var decRefs [4]byte
+		binary.LittleEndian.PutUint32(decRefs[:], existingRefs-1)
+
+		if err := bucket.packs.Put(existingPackIDKey[:], decRefs[:]); err != nil {
+			return fmt.Errorf("decreasing refs for pack %d: %w", existingPackID, err)
+		}
+	}
+
+	return nil
 }
