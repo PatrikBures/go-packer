@@ -25,6 +25,14 @@ type RunRandomActionsConfig struct {
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := t.TempDir()
 
+	fmt.Println("=== Running random actions")
+	fmt.Println("  - Root dir:           ", root)
+	fmt.Println("  - Instances:          ", conf.Instances)
+	fmt.Println("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
+	fmt.Println("  - ActionQty:          ", conf.ActionQty)
+	fmt.Println("  - Seed:               ", conf.Seed)
+	fmt.Println()
+
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
 	maxPackSize  := rng.IntN(MaxMaxPackSize - MinMinPackSize) + MinMinPackSize
@@ -135,7 +143,10 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 
 				hash := sha256.Sum256(chunkBytes)
 
-				p.Put(hash[:], chunkBytes)
+				err := p.Put(hash[:], chunkBytes)
+				if err != nil {
+					return fmt.Errorf("putting chunk: %w", err)
+				}
 
 				chunkBytesGet, err := p.Get(hash[:], buf)
 				if err != nil {
@@ -161,8 +172,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 					return nil
 				}
 
-				limit := 1000
-				if len(ids) < limit {
+				if len(ids) < 1000 {
 					return nil
 				}
 

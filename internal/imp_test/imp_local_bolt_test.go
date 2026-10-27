@@ -22,7 +22,7 @@ func TestLong_Bolt_Local(t *testing.T) {
 
 	packertest.RunRandomActions(t, packertest.RunRandomActionsConfig{
 		Instances: 1, // bbolt supports only one read/write instance
-		RoutinesPerInstance: 2,
+		RoutinesPerInstance: 1,
 		ActionQty: 1000_000,
 		Seed: seed,
 		InitPackager: InitBoltAndLocalPackager,
@@ -41,7 +41,9 @@ func InitBoltAndLocalPackager(dir string, maxPackSize int) (*packer.Packager, er
 		return nil, fmt.Errorf("failed initializing bolt metadataStore: %w", err)
 	}
 
-	ds, err := localData.Init(dir)
+	ds, err := localData.Init(dir, 
+		localData.WithMaxPackSize(int64(maxPackSize)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed initializing local dataStore: %w", err)
 	}

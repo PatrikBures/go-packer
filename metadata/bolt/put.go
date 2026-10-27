@@ -139,24 +139,8 @@ func addChunkUpdateExistingPack(bucket *addChunkBuckets, ci packer.ChunkInfo, ex
 	}
 	existingRefs := binary.LittleEndian.Uint32(existingRefsBytesReceived)
 
-	switch {
-	case existingRefs == 0:
-		return fmt.Errorf("invalid refcount %d for pack %d", existingRefs, existingPackID)
-	case existingRefs == 1:
-		fmt.Printf("TESTING, deleting packID: %d\n", existingPackID)
-		if err := bucket.packs.Delete(existingPackIDKey[:]); err != nil {
-			return fmt.Errorf("deleting unreferenced pack %d: %w", existingPackID, err)
-		}
-		if err := bucket.packsDelete.Put(existingPackIDKey[:], []byte{}); err != nil {
-			return fmt.Errorf("adding deleted pack %d to pending: %w", existingPackID, err)
-		}
-	default:
-		var decRefs [4]byte
-		binary.LittleEndian.PutUint32(decRefs[:], existingRefs-1)
-
-		if err := bucket.packs.Put(existingPackIDKey[:], decRefs[:]); err != nil {
-			return fmt.Errorf("decreasing refs for pack %d: %w", existingPackID, err)
-		}
+	if err := updateOrDeletePack(bucket, existingRefs, existingPackID, existingPackIDKey); err != nil {
+		return fmt.Errorf("updating or deleting pack: %w", err)
 	}
 
 	return nil

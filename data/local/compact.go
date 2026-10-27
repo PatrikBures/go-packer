@@ -56,7 +56,12 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 			break
 		}
 	}
-	return float64(size) / float64(pack.ChunkTotalSize) >= ds.compactPackRatio, nil
+
+	ratio := float64(pack.ChunkTotalSize) / float64(size) 
+	ok := ratio <= ds.compactPackRatio
+	fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d ratio=%.3f limit=%.3f -> %v\n",
+        packID, pack.ChunkTotalSize, size, ratio, ds.compactPackRatio, ok)
+	return  ok, nil
 }
 
 func normalizePack(pack packer.PackInfo) packer.PackInfo {
@@ -192,8 +197,10 @@ func (ds *dataStore) fillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.Chun
 		newPack = append(newPack, ci)
 		offset += size64 + prefixLen
 	}
+	fmt.Printf("fillNewPack:  len chunks=%d, len newPack=%d\n", len(chunks), len(newPack))
 
 	if !newPackFilled {
+		fmt.Printf("!fillNewPack: offset=%d, maxPackSize=%d\n", offset, ds.maxPackSize)
 		return chunks, nil
 	}
 

@@ -96,12 +96,14 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 // Should be passed to CompactNext in a loop
 func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
+	fmt.Printf("Compactable: %d packs from metadata\n", len(packs))
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
 	}
 	if err := p.dataStore.FilterCompactable(packs); err != nil {
 		return nil, err
 	}
+	fmt.Printf("Compactable: %d packs after filter\n", len(packs))
 
 	if len(packs) == 0 {
 		return nil, nil
@@ -138,13 +140,15 @@ func (p *Packager) Compact() (CompactInfo, error) {
 		return CompactInfo{}, err
 	}
 
-	var compInfoAll CompactInfo
+    fmt.Printf("Compact: got %d chunks to compact\n", len(chunks))  // ADD
 
-	for {
+	var compInfoAll CompactInfo
+	for i := 0 ; ; i++ {
 		newChunks, compInfo, err := p.CompactNext(chunks)
 		if err != nil {
 			return CompactInfo{}, err
 		}
+        fmt.Printf("Compact loop %d: newChunks=%d PacksCreated=%d\n", i, len(newChunks), compInfo.PacksCreated)
 		chunks = newChunks
 		if compInfo.PacksCreated == 0 {
 			break

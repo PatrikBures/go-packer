@@ -3,6 +3,7 @@ package metadata
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	bolt "go.etcd.io/bbolt"
@@ -11,21 +12,16 @@ import (
 
 func (ms *metadataStore) Delete(ids [][]byte) error {
 	return ms.db.Update(func(tx *bolt.Tx) error {
-		bc := tx.Bucket(bucketChunks)
-		if bc == nil {
-			return ErrBucketNotFound
-		}
-
-		bp := tx.Bucket(bucketPacks)
-		if bp == nil {
-			return ErrBucketNotFound
+		bucket, err := openAddChunkBuckets(tx)
+		if err != nil {
+			return err
 		}
 
 		for _, id := range ids {
 
-			chunkInfoBytes := bc.Get(id)
+			chunkInfoBytes := bucket.chunks.Get(id)
 			if chunkInfoBytes == nil {
-				return nil
+				continue
 			}
 
 			chunkInfo, err := packer.BytesToChunkInfo(chunkInfoBytes)
@@ -33,29 +29,58 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 				return err
 			}
 
-			var packIDBytes [8]byte
-			binary.LittleEndian.PutUint64(packIDBytes[:], chunkInfo.PackID)
+			var packIDKey [8]byte
+			binary.LittleEndian.PutUint64(packIDKey[:], chunkInfo.PackID)
 
-			refsBytes := bp.Get(packIDBytes[:])
+			refsBytes := bucket.packs.Get(packIDKey[:])
 			if refsBytes == nil {
-				return bc.Delete(id)
+				if err := bucket.chunks.Delete(id); err != nil {
+					return fmt.Errorf("deleting orphaned chunk: %w", err)
+				}
+				continue
 			}
 
 			refs := binary.LittleEndian.Uint32(refsBytes)
-			newRefsBytes := make([]byte, 4)
-			binary.LittleEndian.PutUint32(newRefsBytes, refs-1)
 
-			if err := bp.Put(packIDBytes[:], newRefsBytes); err != nil {
-				return err
+			if err := updateOrDeletePack(bucket, refs, chunkInfo.PackID, packIDKey); err != nil {
+				return fmt.Errorf("deleting or updating pack: %w", err)
 			}
 
-			if err := bc.Delete(id); err != nil {
-				return err
+			if err := bucket.chunks.Delete(id); err != nil {
+				return fmt.Errorf("deleting chunk: %w", err)
 			}
 		}
 
 		return nil
 	})
+}
+
+// decrements pack count by one.
+// refCount == 1 -> pack goes to packDelete
+// refCount >  1 -> updates stored refcount to refCount-1
+// refCount == 0 -> error
+func updateOrDeletePack(bucket *addChunkBuckets, refCount uint32, packID uint64, packIDKey [8]byte) error {
+
+	switch refCount {
+	case 0:
+		return fmt.Errorf("invalid refcount %d for pack %d", refCount, packID)
+	case 1:
+		if err := bucket.packs.Delete(packIDKey[:]); err != nil {
+			return fmt.Errorf("deleting unreferenced pack %d: %w", packID, err)
+		}
+		if err := bucket.packsDelete.Put(packIDKey[:], []byte{}); err != nil {
+			return fmt.Errorf("adding deleted pack %d to pending: %w", packID, err)
+		}
+	default:
+		var decRefs [4]byte
+		binary.LittleEndian.PutUint32(decRefs[:], refCount-1)
+
+		if err := bucket.packs.Put(packIDKey[:], decRefs[:]); err != nil {
+			return fmt.Errorf("decreasing refs for pack %d: %w", packID, err)
+		}
+	}
+
+	return nil
 }
 
 func (ms *metadataStore) PacksDeleteBatch() ([]uint64, error) {

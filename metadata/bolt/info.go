@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"slices"
 
@@ -156,10 +157,7 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]pac
 		return nil, err
 	}
 	slices.SortFunc(chunks, func(a packer.ChunkInfoWithID, b packer.ChunkInfoWithID) int {
-		if a.PackID < b.PackID {
-			return -1
-		}
-		return 1
+		return cmp.Compare(a.PackID, b.PackID)
 	})
 
 	return chunks, nil

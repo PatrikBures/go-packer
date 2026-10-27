@@ -51,11 +51,12 @@ func WithMaxPackSize(bytes int64) Option {
 
 // Ratio of existing chunks in a pack compared with the total size of the pack.
 //
-// If the ratio is below 0 it will be set to 0.75, which is the default value.
-// Ratio is clamped to max 1.
+// Ratio is clamped between 0 and 1.
+//
+// Default is 0.25
 func WithCompactPackThreshold(ratio float64) Option {
 	return func(ds *dataStore) {
-		ds.compactPackRatio = max(min(ratio, 1), -1)
+		ds.compactPackRatio = max(min(ratio, 1), 0)
 	}
 }
 
@@ -76,17 +77,14 @@ func Init(packDir string, opts ...Option) (*dataStore, error) {
 	}
 
 	ds := dataStore{
-		packDir:     packDir,
-		packRead:    packread.New(),
-		maxPackSize: defaultPackSize,
+		packDir:          packDir,
+		packRead:         packread.New(),
+		maxPackSize:      defaultPackSize,
+		compactPackRatio: 0.25,
 	}
 
 	for _, opt := range opts {
 		opt(&ds)
-	}
-
-	if ds.compactPackRatio < 0 {
-		ds.compactPackRatio = 0.75
 	}
 
 	if _, err := ds.openPackWrite(); err != nil {
