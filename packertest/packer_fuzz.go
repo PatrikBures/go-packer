@@ -194,7 +194,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 
 	for range actionQty {
 		if err := PickAndRunAction(actions, rng); err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 	}
 }
