@@ -18,7 +18,7 @@ func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 
 // Updates the total size to the expected file size including header and all prefixes.
 func normalizePack(pack packer.PackInfo) packer.PackInfo {
-	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
+	pack.ChunkTotalSize += headerLen + (uint64(pack.ChunkCount) * prefixLen)
 	return pack
 }
 

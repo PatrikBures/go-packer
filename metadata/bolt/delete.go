@@ -32,17 +32,21 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 			var packIDKey [8]byte
 			binary.LittleEndian.PutUint64(packIDKey[:], chunkInfo.PackID)
 
-			refsBytes := bucket.packs.Get(packIDKey[:])
-			if refsBytes == nil {
+			packInfoValue := bucket.packs.Get(packIDKey[:])
+			if packInfoValue == nil {
 				if err := bucket.chunks.Delete(id); err != nil {
 					return fmt.Errorf("deleting orphaned chunk: %w", err)
 				}
 				continue
 			}
 
-			refs := binary.LittleEndian.Uint32(refsBytes)
+			packInfo, err := packer.BytesToPackInfo(packInfoValue)
+			if err != nil {
+				return fmt.Errorf("converting bytes to PackInfo while deleting chunks: %w", err)
+			} 
 
-			if err := updateOrDeletePack(bucket, refs, chunkInfo.PackID, packIDKey); err != nil {
+			packInfo.ChunkTotalSize -= uint64(chunkInfo.SizeBytes)
+			if err := decPack(bucket, packInfo, chunkInfo.PackID, packIDKey); err != nil {
 				return fmt.Errorf("deleting or updating pack: %w", err)
 			}
 
@@ -55,30 +59,26 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 	})
 }
 
-// decrements pack count by one.
+// Decrements pack count by one. Remember to update ChunkTotalSize before running this, but not the ChunkCount!
 //
-// refCount == 1 -> pack goes to packDelete
-//
-// refCount >  1 -> updates stored refcount to refCount-1
-//
-// refCount == 0 -> error
-func updateOrDeletePack(bucket *addChunkBuckets, refCount uint32, packID uint64, packIDKey [8]byte) error {
+// ChunkCount is 1 and the pack is Completed -> pack goes to packDelete
+// 
+// ChunkCount larger than 1 -> decreases ChunkCount by one
+func decPack(bucket *addChunkBuckets, packInfo packer.PackInfo, packID uint64, packIDKey [8]byte) error {
 
-	switch refCount {
-	case 0:
-		return fmt.Errorf("invalid refcount %d for pack %d", refCount, packID)
-	case 1:
+	if packInfo.State == packer.PackStateCompleted && packInfo.ChunkCount <= 1 {
 		if err := bucket.packs.Delete(packIDKey[:]); err != nil {
 			return fmt.Errorf("deleting unreferenced pack %d: %w", packID, err)
 		}
 		if err := bucket.packsDelete.Put(packIDKey[:], []byte{}); err != nil {
 			return fmt.Errorf("adding deleted pack %d to pending: %w", packID, err)
 		}
-	default:
-		var decRefs [4]byte
-		binary.LittleEndian.PutUint32(decRefs[:], refCount-1)
+	} else if packInfo.ChunkCount == 0 {
+		return fmt.Errorf("Can not decrease ChunkCount below 0. This error should never occur")
+	} else {
+		packInfo.ChunkCount--
 
-		if err := bucket.packs.Put(packIDKey[:], decRefs[:]); err != nil {
+		if err := bucket.packs.Put(packIDKey[:], packInfo.Bytes()); err != nil {
 			return fmt.Errorf("decreasing refs for pack %d: %w", packID, err)
 		}
 	}

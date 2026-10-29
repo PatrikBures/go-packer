@@ -42,6 +42,51 @@ type MetadataStore interface {
 	PacksDeleteBatch() ([]uint64, error)
 }
 
+var (
+	ErrSliceTooSmall = errors.New("provided slice is too small")
+)
+
+
+
+type PackState uint8
+const (
+	PackStateActive PackState = 0
+	PackStateCompleted        = 1
+)
+
+const PackInfoSize = 13
+type PackInfo struct {
+	ChunkTotalSize uint64    // [0:8]
+	ChunkCount     uint32    // [8:12]
+	State          PackState // [12:13]
+}
+
+func (pi *PackInfo) Bytes() []byte {
+	var buf [PackInfoSize]byte
+	pi.PutBytes(buf[:])
+	return buf[:]
+}
+
+func (pi *PackInfo) PutBytes(buf []byte) {
+	_ = buf[PackInfoSize-1] // early bound check
+	binary.LittleEndian.PutUint64(buf[0:8], pi.ChunkTotalSize)
+	binary.LittleEndian.PutUint32(buf[8:12], pi.ChunkCount)
+	buf[12] = byte(pi.State)
+}
+
+func BytesToPackInfo(b []byte) (PackInfo, error) {
+	if len(b) < PackInfoSize {
+		return PackInfo{}, ErrSliceTooSmall
+	}
+	return PackInfo{
+		ChunkTotalSize: binary.LittleEndian.Uint64(b[0:8]),
+		ChunkCount:     binary.LittleEndian.Uint32(b[8:12]),
+		State:          PackState(b[12]), // Unsafe conversion, it will crash if the byte is not a valid PackState.
+	}, nil
+}
+
+
+
 const ChunkInfoSize = 20
 
 type ChunkInfo struct {
@@ -55,15 +100,10 @@ type ChunkInfoWithID struct {
 	Id []byte
 }
 
-type PackInfo struct {
-	ChunkCount     uint64
-	ChunkTotalSize uint64
-}
-
 func (ci *ChunkInfo) Bytes() []byte {
-	buf := make([]byte, ChunkInfoSize)
-	ci.PutBytes(buf)
-	return buf
+	var buf [ChunkInfoSize]byte
+	ci.PutBytes(buf[:])
+	return buf[:]
 }
 
 // converts ChunkInfo into buf[0:20]
@@ -75,10 +115,6 @@ func (ci *ChunkInfo) PutBytes(buf []byte) {
 	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
 	binary.LittleEndian.PutUint32(buf[16:20], ci.SizeBytes)
 }
-
-var (
-	ErrSliceTooSmall = errors.New("provided slice is too small")
-)
 
 // can return ErrSliceTooSmall
 func BytesToChunkInfo(b []byte) (ChunkInfo, error) {

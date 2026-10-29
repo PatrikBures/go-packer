@@ -62,31 +62,59 @@ func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
 func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
 	packInfos := make(map[uint64]packer.PackInfo)
 
-	packsMap := sliceToMapUint64(packIDs)
+	var packsMap map[uint64]struct{}
+	if packIDs != nil {
+		packsMap = sliceToMapUint64(packIDs)
+	}
 	if err := ms.db.View(func(tx *bolt.Tx) error {
 		cb := tx.Bucket(bucketChunks)
 		if cb == nil {
 			return ErrBucketNotFound
 		}
+		cp := tx.Bucket(bucketPacks)
+		if cb == nil {
+			return ErrBucketNotFound
+		}
 
-		return cb.ForEach(func(k, v []byte) error {
-			if len(v) < packer.ChunkInfoSize {
+		var f func(k, v []byte) error
+		if packsMap == nil {
+			f = func(k, v []byte) error {
+				if len(v) < packer.PackInfoSize {
+					return nil
+				}
+				packID := binary.LittleEndian.Uint64(k[0:8])
+
+				packInfo, err := packer.BytesToPackInfo(v)
+				if err != nil {
+					return err
+				}
+				packInfos[packID] = packInfo
+
+				return nil 
+			}
+		} else {
+			f = func(k, v []byte) error {
+				if len(v) < packer.PackInfoSize {
+					return nil
+				}
+				packID := binary.LittleEndian.Uint64(k[0:8])
+
+				if _, ok := packsMap[packID]; !ok {
+					return nil
+				}
+
+				packInfo, err := packer.BytesToPackInfo(v)
+				if err != nil {
+					return err
+				}
+				packInfos[packID] = packInfo
+
 				return nil
 			}
-			packID := binary.LittleEndian.Uint64(v[0:8])
-			if _, ok := packsMap[packID]; !ok {
-				return nil
-			}
+		}
 
-			size := binary.LittleEndian.Uint32(v[16:20])
+		return cp.ForEach(f)
 
-			pv := packInfos[packID]
-			pv.ChunkCount++
-			pv.ChunkTotalSize += uint64(size)
-			packInfos[packID] = pv
-
-			return nil
-		})
 	}); err != nil {
 		return nil, err
 	}
@@ -95,33 +123,7 @@ func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo,
 }
 
 func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
-	packInfos := make(map[uint64]packer.PackInfo)
-
-	if err := ms.db.View(func(tx *bolt.Tx) error {
-		cb := tx.Bucket(bucketChunks)
-		if cb == nil {
-			return ErrBucketNotFound
-		}
-
-		return cb.ForEach(func(_, v []byte) error {
-			if len(v) < packer.ChunkInfoSize {
-				return nil
-			}
-			packID := binary.LittleEndian.Uint64(v[0:8])
-			size := binary.LittleEndian.Uint32(v[16:20])
-
-			pv := packInfos[packID]
-			pv.ChunkCount++
-			pv.ChunkTotalSize += uint64(size)
-			packInfos[packID] = pv
-
-			return nil
-		})
-	}); err != nil {
-		return nil, err
-	}
-
-	return packInfos, nil
+	return ms.PackInfo(nil)
 }
 
 func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]packer.ChunkInfoWithID, error) {

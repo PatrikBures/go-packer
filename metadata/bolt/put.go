@@ -82,11 +82,14 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 		return fmt.Errorf("attempting to write chunk to pack %d marked for deletion", ci.PackID)
 	}
 
+	// if chunk already exists
 	if existingChunkBytes := bucket.chunks.Get(id); existingChunkBytes != nil {
 		if len(existingChunkBytes) != packer.ChunkInfoSize {
 			return fmt.Errorf("invalid chunk info, id: %x, len: %d, want len: %d", id, len(existingChunkBytes), packer.ChunkInfoSize)
 		}
 
+
+		// if same pack
 		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes)
 		if existingPackID == ci.PackID {
 			var want [packer.ChunkInfoSize]byte
@@ -100,31 +103,44 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 			return nil
 		}
 
+		// if different pack
 		var existingPackIDKey [8]byte
 		binary.LittleEndian.PutUint64(existingPackIDKey[:], existingPackID)
-		refsBytes := bucket.packs.Get(existingPackIDKey[:])
-		if refsBytes == nil {
+		packInfoValue := bucket.packs.Get(existingPackIDKey[:])
+		if packInfoValue == nil {
 			return fmt.Errorf("pack not found: %d", existingPackID)
 		}
-		if err := updateOrDeletePack(bucket, binary.LittleEndian.Uint32(refsBytes), existingPackID, existingPackIDKey); err != nil {
+		packInfo, err := packer.BytesToPackInfo(packInfoValue)
+		if err != nil {
+			return fmt.Errorf("converting bytes to PackInfo, for existing pack: %w", err)
+		}
+		packInfo.ChunkTotalSize -= uint64(ci.SizeBytes)
+		if err := decPack(bucket, packInfo, existingPackID, existingPackIDKey); err != nil {
 			return fmt.Errorf("updating existing pack: %w", err)
 		}
 	}
 
-	var refs uint32
-	if refsBytes := bucket.packs.Get(packIDKey[:]); refsBytes != nil {
-		refs = binary.LittleEndian.Uint32(refsBytes)
+
+	// if new chunk
+	var packInfo packer.PackInfo
+	if packInfoBytes := bucket.packs.Get(packIDKey[:]); packInfoBytes != nil {
+		var err error
+		packInfo, err = packer.BytesToPackInfo(packInfoBytes)
+		if err != nil {
+			return fmt.Errorf("converting bytes to PackInfo, for new pack: %w", err)
+		}
+	} else {
+		packInfo.State = packer.PackStateActive
 	}
 
-	var refsVal [4]byte
-	binary.LittleEndian.PutUint32(refsVal[:], refs+1)
-	if err := bucket.packs.Put(packIDKey[:], refsVal[:]); err != nil {
+	packInfo.ChunkCount++
+	packInfo.ChunkTotalSize += uint64(ci.SizeBytes)
+
+	if err := bucket.packs.Put(packIDKey[:], packInfo.Bytes()); err != nil {
 		return fmt.Errorf("updating pack %d refs: %w", ci.PackID, err)
 	}
 
-	var infoVal [packer.ChunkInfoSize]byte
-	ci.PutBytes(infoVal[:])
-	if err := bucket.chunks.Put(id, infoVal[:]); err != nil {
+	if err := bucket.chunks.Put(id, ci.Bytes()); err != nil {
 		return fmt.Errorf("adding chunk: %w", err)
 	}
 
