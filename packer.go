@@ -17,28 +17,66 @@ func New(ms MetadataStore, ds DataStore) *Packager {
 	}
 }
 
+func (p *Packager) Init() error {
+	if err := p.metadataStore.Init(); err != nil {
+		return fmt.Errorf("initializing metadataStore: %w", err)
+	}
+
+	if err := p.dataStore.Init(); errors.Is(err, ErrNewPack) {
+		newPackID, err := p.metadataStore.AllocatePack()
+		if err != nil {
+			return fmt.Errorf("allocating pack: %w", err)
+		}
+		if err := p.dataStore.SwitchPack(newPackID); err != nil {
+			return fmt.Errorf("switching pack to %d: %w", newPackID, err)
+		}
+	}
+
+	return nil
+}
+
 func (p *Packager) Close() error {
 	return errors.Join(p.metadataStore.Close(), p.dataStore.Close())
 }
 
 // Puts a pack with a unique id. Returns early if the id already exists in metadataStore. 
 func (p *Packager) Put(id []byte, data []byte) error {
-	if ok, err := p.metadataStore.Exists(id); err != nil {
+	if exists, err := p.metadataStore.Exists(id); err != nil {
 		return fmt.Errorf("checking if chunk already exists: %w", err)
-	} else if ok {
+	} else if exists {
 		return nil
 	}
 
-	ci, err := p.dataStore.Put(data)
-	if err != nil {
-		return fmt.Errorf("failed writing chunk to pack: %w", err)
+	for range 2 {
+
+		ci, err := p.dataStore.Put(data)
+
+		// when a new pack is needed, like when the current one is full,
+		// it first checks if there is an existing one it can continue on,
+		// otherwise it allocates a new one.
+		if errors.Is(err, ErrNewPack) {
+			err := p.dataStore.SwitchPackExisting()
+			if errors.Is(err, ErrNewPack) {
+				newPackID, err := p.metadataStore.AllocatePack()
+				if err != nil {
+					return fmt.Errorf("allocating new pack: %w", err)
+				}
+				if err := p.dataStore.SwitchPack(newPackID); err != nil {
+					return fmt.Errorf("switching pack %d: %w", newPackID, err)
+				}
+			}
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("failed writing chunk to pack: %w", err)
+		}
+		if err := p.metadataStore.Put(id, ci); err != nil {
+			return fmt.Errorf("failed adding chunk to metadata store: %w", err)
+		}
+		return nil
 	}
 
-	if err := p.metadataStore.Put(id, ci); err != nil {
-		return fmt.Errorf("failed adding chunk to metadata store: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("put retries exhausted")
 }
 
 // Gets content of chunk.
@@ -121,15 +159,25 @@ func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
 // The returned slice should be passed again to this method in a loop.
 // It should break out of the loop when CompactInfo.PacksCreated = 0.
 func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, CompactInfo, error) {
-	newChunks, packChunks, compInfo, err := p.dataStore.CompactNextPack(chunks)
+	chunksRest, chunksNewPack := p.dataStore.FillNewPack(chunks)
+	if chunksNewPack == nil {
+		return chunksRest, CompactInfo{}, nil
+	}
+
+	newPackID, err := p.metadataStore.AllocatePack()
+	if err != nil {
+		return nil, CompactInfo{}, fmt.Errorf("allocating new pack: %w", err)
+	}
+
+	compInfo, err := p.dataStore.CompactNextPack(newPackID, chunks)
 	if err != nil {
 		return nil, CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
 	}
-	if err := p.metadataStore.PutChunks(packChunks); err != nil {
+	if err := p.metadataStore.PutChunks(chunksNewPack); err != nil {
 		return nil, CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunks), err)
 	}
 
-	return newChunks, compInfo, nil
+	return chunksRest, compInfo, nil
 }
 
 

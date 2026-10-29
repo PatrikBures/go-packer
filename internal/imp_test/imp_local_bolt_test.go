@@ -36,15 +36,13 @@ func Test_Bolt_Local(t *testing.T) {
 func InitBoltAndLocalPackager(dir string, maxPackSize int) (*packer.Packager, error) {
 	dbPath := filepath.Join(dir, "metadata.db")
 
-	ms, err := boltMetadata.Init(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed initializing bolt metadataStore: %w", err)
-	}
-
-	ds, err := localData.Init(dir, 
+	ms := boltMetadata.New(dbPath)
+	ds := localData.New(dir,
 		localData.WithMaxPackSize(int64(maxPackSize)),
 	)
-	if err != nil {
+
+	p := packer.New(ms, ds)
+	if err := p.Init(); err != nil {
 		return nil, fmt.Errorf("failed initializing local dataStore: %w", err)
 	}
 

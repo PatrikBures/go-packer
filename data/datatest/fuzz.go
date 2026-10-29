@@ -3,10 +3,8 @@ package datatest
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand/v2"
-	"os"
 	"runtime/debug"
 	"sync"
 	"testing"
@@ -242,40 +240,6 @@ func fuzzDataRandomActions(t *testing.T, ds packer.DataStore, seed uint64, ms *m
 
 				if hashGet := sha256.Sum256(chunkBytesGet); hash != hashGet {
 					return fmt.Errorf("hash mismatch after put: expected %x, got: '%x'", hash[:4], hashGet[:4])
-				}
-
-				return nil
-			},
-		},
-		{
-			Name: "Delete unreferenced packs",
-			Weight: 0,
-			Run: func() error {
-				var nextPackID uint64
-				var deletePacks []uint64
-
-				// limit so it does not get stuck
-				for range 1000 {
-					packs, err := ds.PacksBatch(nextPackID, nil)
-					if err != nil {
-						return err
-					}
-					if len(packs) == 0 {
-						break
-					}
-
-					nextPackID = packs[len(packs)-1] + 1
-					packs = ms.FilterExistingPacks(packs)
-					deletePacks = append(deletePacks, packs...)
-				}
-
-				to := len(deletePacks) >> 5
-				if to < 1 {
-					to = 1
-				}
-
-				if _, err := ds.DeletePacks(deletePacks[:0]); err != nil && !errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("deleting %d packs: %w", len(deletePacks), err)
 				}
 
 				return nil

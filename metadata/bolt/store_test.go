@@ -18,8 +18,8 @@ func initBoltP(t *testing.T) packer.MetadataStore {
 	tempDir := t.TempDir()
 	dbFile := filepath.Join(tempDir, "bolt.db")
 
-	ms, err := Init(dbFile)
-	if err != nil {
+	ms := New(dbFile)
+	if err := ms.Init(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -30,8 +30,8 @@ func initBolt(t *testing.T) *metadataStore {
 	tempDir := t.TempDir()
 	dbFile := filepath.Join(tempDir, "bolt.db")
 
-	ms, err := Init(dbFile)
-	if err != nil {
+	ms := New(dbFile)
+	if err := ms.Init(); err != nil {
 		t.Fatal(err)
 	}
 

@@ -110,18 +110,20 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 		if packInfoValue == nil {
 			return fmt.Errorf("pack not found: %d", existingPackID)
 		}
+
 		packInfo, err := packer.BytesToPackInfo(packInfoValue)
 		if err != nil {
 			return fmt.Errorf("converting bytes to PackInfo, for existing pack: %w", err)
 		}
-		packInfo.ChunkTotalSize -= uint64(ci.SizeBytes)
+
+		packInfo.Size -= uint64(ci.Size)
 		if err := decPack(bucket, packInfo, existingPackID, existingPackIDKey); err != nil {
 			return fmt.Errorf("updating existing pack: %w", err)
 		}
 	}
 
 
-	// if new chunk
+	// update pack
 	var packInfo packer.PackInfo
 	if packInfoBytes := bucket.packs.Get(packIDKey[:]); packInfoBytes != nil {
 		var err error
@@ -134,7 +136,7 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 	}
 
 	packInfo.ChunkCount++
-	packInfo.ChunkTotalSize += uint64(ci.SizeBytes)
+	packInfo.Size += uint64(ci.Size)
 
 	if err := bucket.packs.Put(packIDKey[:], packInfo.Bytes()); err != nil {
 		return fmt.Errorf("updating pack %d refs: %w", ci.PackID, err)
@@ -145,4 +147,28 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 	}
 
 	return nil
+}
+
+
+
+func (ms *metadataStore) MarkCompleted(packID uint64) error {
+	return ms.db.Update(func(tx *bolt.Tx) error {
+		bp := tx.Bucket(bucketPacks)
+		if bp == nil {
+			return ErrBucketNotFound
+		}
+
+		var packIDKey [8]byte
+		binary.LittleEndian.PutUint64(packIDKey[:], packID)
+
+		packIDVal := bp.Get(packIDKey[:])
+		if packIDVal == nil {
+			return fmt.Errorf("%w: %d", packer.ErrPackNotFound, packID)
+		}
+		var packIDBytes [packer.PackInfoSize]byte
+		copy(packIDVal, packIDBytes[:])
+		packIDBytes[packer.PackInfoIdxState] = byte(packer.PackStateCompleted)
+
+		return bp.Put(packIDKey[:], packIDBytes[:])
+	})
 }

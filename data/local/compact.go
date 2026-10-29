@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 
+	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
 )
 
@@ -18,7 +18,7 @@ func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 
 // Updates the total size to the expected file size including header and all prefixes.
 func normalizePack(pack packer.PackInfo) packer.PackInfo {
-	pack.ChunkTotalSize += headerLen + (uint64(pack.ChunkCount) * prefixLen)
+	pack.Size += headerLen + (uint64(pack.ChunkCount) * prefixLen)
 	return pack
 }
 
@@ -51,32 +51,27 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 	}
 	size := stat.Size()
 
-	ratio := float64(pack.ChunkTotalSize) / float64(size) 
+	ratio := float64(pack.Size) / float64(size) 
 	ok := ratio <= ds.compactPackRatio
 	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
-	//        packID, pack.ChunkTotalSize, size, ratio, ds.compactPackRatio, ok)
+	//        packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
 	return  ok, nil
 }
 
-// Compacts next pack from chunks. Returns updated chunks whithout the chunks in newPackChunks.
-func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks []packer.ChunkInfoWithID, newPackChunks []packer.ChunkInfoWithID, compactInfo packer.CompactInfo, err error) {
+func (ds *dataStore) CompactNextPack(packID uint64, chunks []packer.ChunkInfoWithID) (compactInfo packer.CompactInfo, err error) {
 
-	newChunks, newPackChunks = ds.fillNewPack(chunks)
-	if newPackChunks == nil {
-		return
-	}
+	packPath := ds.activePackPath(packID)
 
-	lock, packID, err := ds.lockActive(ds.nextPackID)
+	lock := flock.New(packPath)
+	locked, err := lock.TryLock()
 	if err != nil {
-		err = fmt.Errorf("locking file: %w", err)
-		return
+		return packer.CompactInfo{}, fmt.Errorf("locking file: %w", err)
+	}
+	if !locked {
+		return packer.CompactInfo{}, fmt.Errorf("did not get lock: %s", ds.activePackPath(packID))
 	}
 	defer func() {
-		if !lock.Locked() {
-			return
-		}
-		if err != nil {
-			_ = lock.Unlock()
+		if err == nil {
 			return
 		}
 		err = lock.Unlock()
@@ -85,58 +80,45 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 		}
 	}()
 
-	completedPath := ds.completedPackPath(packID)
 
-	if err := os.MkdirAll(filepath.Dir(completedPath), 0775); err != nil {
-		return nil, nil, packer.CompactInfo{}, err
-	}
-
-	if err = os.Rename(lock.Path(), completedPath); err != nil {
-		_ = os.Remove(lock.Path())
-		err = fmt.Errorf("moving pack to completed: %w", err)
-		return
-	}
-
-	f, err := os.OpenFile(completedPath, os.O_TRUNC | os.O_WRONLY, 0666)
+	f, err := os.OpenFile(packPath, os.O_TRUNC | os.O_WRONLY, 0666)
 	if err != nil {
-		err = fmt.Errorf("creating file: %w", err)
-		return
+		return packer.CompactInfo{}, fmt.Errorf("creating file: %w", err)
 	}
 	defer func() {
-		if f != nil && err != nil {
+		if err != nil {
 			_ = f.Close()
-			_ = os.Remove(completedPath)
+			_ = os.Remove(packPath)
 		}
 	}()
 
 	h, err := writePackHeader(packID, stateCompacting, f)
 	if err != nil {
-		err = fmt.Errorf("writing header to new pack: %w", err)
-		return
+		return packer.CompactInfo{}, fmt.Errorf("writing header to new pack: %w", err)
 	}
 
 	offset := int64(headerLen)
 	var buf []byte // should move to pool in future
-	for i, ci := range newPackChunks {
-		totalSize := ci.SizeBytes + prefixLen
+	for i, ci := range chunks {
+		totalSize := ci.Size + prefixLen
 		if len(buf) < int(totalSize) {
 			buf = slices.Grow(buf, int(totalSize)-len(buf))[:totalSize:totalSize]
 		}
 
 		data, err := ds.Get(ci.ChunkInfo, buf)
 		if err != nil {
-			return nil, nil, packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
+			return packer.CompactInfo{}, fmt.Errorf("getting chunk: %w", err)
 		}
 
 		newCi, err := putChunk(packID, data, f, offset)
 		if err != nil {
-			return nil, nil, packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
+			return packer.CompactInfo{}, fmt.Errorf("puting chunk into new pack: %w", err)
 		}
 
 		offset += int64(totalSize)
 		ci.ChunkInfo = newCi
 		compactInfo.ChunksMoved++
-		newPackChunks[i] = ci
+		chunks[i] = ci
 	}
 
 	compactInfo.PackBytesAdded = offset
@@ -144,19 +126,32 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 
 	h.State = stateCompleted
 
-	if err := h.WriteAtFile(f); err != nil {
-		return nil, nil, packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
+	if err = h.WriteAtFile(f); err != nil {
+		return packer.CompactInfo{}, fmt.Errorf("writing updated header: %w", err)
 	}
 
 	if err = f.Sync(); err != nil {
-		return nil, nil, packer.CompactInfo{}, fmt.Errorf("syncing file pack: %w", err)
+		return packer.CompactInfo{}, fmt.Errorf("syncing file pack: %w", err)
 	}
 
 	if err = f.Close(); err != nil {
-		return nil, nil, packer.CompactInfo{}, fmt.Errorf("closing pack file: %w", err)
+		return packer.CompactInfo{}, fmt.Errorf("closing pack file: %w", err)
 	}
 
-	f = nil
+
+	if err = os.MkdirAll(ds.completedPackDir(packID), 0775); err != nil {
+		return packer.CompactInfo{}, err
+	}
+
+	completedPath := ds.completedPackPath(packID)
+	if err = os.Rename(packPath, completedPath); err != nil {
+		_ = os.Remove(completedPath)
+		return packer.CompactInfo{}, fmt.Errorf("moving pack to completed: %w", err)
+	}
+	if err = lock.Unlock(); err != nil {
+		return packer.CompactInfo{}, fmt.Errorf("unlocking pack %d: %w", packID, err)
+	}
+
 	return
 }
 
@@ -166,7 +161,7 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 //
 // The provided slice is expected to be sorted by packID and bytes.
 // Meaning that the chunks in smallest packID should be first.
-func (ds *dataStore) fillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.ChunkInfoWithID, []packer.ChunkInfoWithID) {
+func (ds *dataStore) FillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.ChunkInfoWithID, []packer.ChunkInfoWithID) {
 	var newChunks []packer.ChunkInfoWithID
 
 	offset := int64(headerLen)
@@ -178,7 +173,7 @@ func (ds *dataStore) fillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.Chun
 	var ci packer.ChunkInfoWithID
 	for i, ci = range chunks {
 
-		size64 := int64(ci.SizeBytes)
+		size64 := int64(ci.Size)
 		if offset+size64+prefixLen > ds.maxPackSize {
 			newChunksFilled = true
 			break

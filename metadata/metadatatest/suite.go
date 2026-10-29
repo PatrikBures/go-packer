@@ -49,7 +49,7 @@ func testPutAndGetSingleChunk(t *testing.T, ms packer.MetadataStore) {
 	testCI := packer.ChunkInfo{
 		PackID: 1,
 		Offset: 1234,
-		SizeBytes: 10,
+		Size: 10,
 	}
 
 	if err := ms.Put(testID, testCI); err != nil {
@@ -126,7 +126,7 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			SizeBytes: 1,
+			Size: 1,
 		},
 	}
 
@@ -153,6 +153,11 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 		t.Fatal("expected chunk count to be 1 for pack 1, received: %d", pi[1].ChunkCount)
 	}
 
+
+	// marks pack as completed so it can be marked for deletion, as only completed packs can do that.
+	if err := ms.MarkCompleted(chunk.PackID); err != nil {
+		t.Fatal(err)
+	}
 
 	chunk.PackID = 2
 
@@ -228,7 +233,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			SizeBytes: 1,
+			Size: 1,
 		},
 	},
 	{
@@ -236,7 +241,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 138782,
-			SizeBytes: 10000,
+			Size: 10000,
 		},
 	},
 	{
@@ -244,7 +249,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 3,
 			Offset: 1000,
-			SizeBytes: 12341234,
+			Size: 12341234,
 		},
 	},
 }

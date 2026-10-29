@@ -9,14 +9,23 @@ import (
 	"go.pabu.dev/packer"
 )
 
-func TestData(t *testing.T) {
+func newDS(t *testing.T) *dataStore {
 	tempDir := t.TempDir()
-	buf := make([]byte, 100)
-
-	ds, err := Init(tempDir)
+	ds := New(tempDir)
+	err := ds.Init()
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := ds.SwitchPack(0); err != nil {
+		t.Fatal(err)
+	}
+	return ds
+}
+
+func TestData(t *testing.T) {
+	buf := make([]byte, 100)
+
+	ds := newDS(t)
 
 	if ds.currentPackOffset != headerLen {
 		t.Errorf("expected offset to be the len of header. expected: %d, received: %d", headerLen, ds.currentPackOffset)
@@ -96,10 +105,10 @@ func TestPutChunk(t *testing.T) {
 		}
 		testData[i] = td
 
-		if int(td.ci.SizeBytes) != len(td.chunk) {
-			t.Errorf("ci.SizeBytes = %d, want %d", td.ci.SizeBytes, len(td.chunk))
+		if int(td.ci.Size) != len(td.chunk) {
+			t.Errorf("ci.Size = %d, want %d", td.ci.Size, len(td.chunk))
 		}
 
-		offset += int64(td.ci.SizeBytes) + prefixLen
+		offset += int64(td.ci.Size) + prefixLen
 	}
 }
