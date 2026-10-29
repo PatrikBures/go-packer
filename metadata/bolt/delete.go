@@ -56,8 +56,11 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 }
 
 // decrements pack count by one.
+//
 // refCount == 1 -> pack goes to packDelete
+//
 // refCount >  1 -> updates stored refcount to refCount-1
+//
 // refCount == 0 -> error
 func updateOrDeletePack(bucket *addChunkBuckets, refCount uint32, packID uint64, packIDKey [8]byte) error {
 

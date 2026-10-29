@@ -16,6 +16,13 @@ func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
 	}
 }
 
+// Updates the total size to the expected file size including header and all prefixes.
+func normalizePack(pack packer.PackInfo) packer.PackInfo {
+	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
+	return pack
+}
+
+
 func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 	for packID, info := range packs {
 		np := normalizePack(info)
@@ -31,42 +38,24 @@ func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 }
 
 func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, error) {
-	var size int64
-	if f := ds.packRead.Get(packID); f != nil {
-		stat, err := f.Stat()
-		if err != nil {
-			return false, fmt.Errorf("stating file from cache: %w", err)
-		}
-		size = stat.Size()
-	} else {
-		paths := []string{
-			ds.completedPackPath(packID),
-			ds.activePackPath(packID),
-			ds.completedPackPath(packID),
-		}
-		for i, p := range paths {
-			stat, err := os.Stat(p)
-
-			if i < len(paths)-1 && errors.Is(err, os.ErrNotExist) {
-				continue
-			} else if err != nil {
-				return false, fmt.Errorf("stating pack %s: %w", paths[i], err)
-			}
-			size = stat.Size()
-			break
-		}
+	if packID == ds.currentPackID {
+		return false, nil
 	}
+
+	stat, err := os.Stat(ds.completedPackPath(packID))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stating completed pack %d: %w", packID, err)
+	}
+	size := stat.Size()
 
 	ratio := float64(pack.ChunkTotalSize) / float64(size) 
 	ok := ratio <= ds.compactPackRatio
-	fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d ratio=%.3f limit=%.3f -> %v\n",
-        packID, pack.ChunkTotalSize, size, ratio, ds.compactPackRatio, ok)
+	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
+	//        packID, pack.ChunkTotalSize, size, ratio, ds.compactPackRatio, ok)
 	return  ok, nil
-}
-
-func normalizePack(pack packer.PackInfo) packer.PackInfo {
-	pack.ChunkTotalSize += headerLen + (pack.ChunkCount * prefixLen)
-	return pack
 }
 
 // Compacts next pack from chunks. Returns updated chunks whithout the chunks in newPackChunks.
@@ -178,11 +167,12 @@ func (ds *dataStore) CompactNextPack(chunks []packer.ChunkInfoWithID) (newChunks
 // The provided slice is expected to be sorted by packID and bytes.
 // Meaning that the chunks in smallest packID should be first.
 func (ds *dataStore) fillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.ChunkInfoWithID, []packer.ChunkInfoWithID) {
-	var newPack []packer.ChunkInfoWithID
+	var newChunks []packer.ChunkInfoWithID
 
 	offset := int64(headerLen)
 
-	var newPackFilled bool
+	var newChunksFilled bool
+	packIDs := make(map[uint64]struct{})
 
 	var i int
 	var ci packer.ChunkInfoWithID
@@ -190,19 +180,24 @@ func (ds *dataStore) fillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.Chun
 
 		size64 := int64(ci.SizeBytes)
 		if offset+size64+prefixLen > ds.maxPackSize {
-			newPackFilled = true
+			newChunksFilled = true
 			break
 		}
 
-		newPack = append(newPack, ci)
+		packIDs[ci.PackID] = struct{}{}
+		newChunks = append(newChunks, ci)
 		offset += size64 + prefixLen
 	}
-	fmt.Printf("fillNewPack:  len chunks=%d, len newPack=%d\n", len(chunks), len(newPack))
+	fmt.Printf("fillNewPack:  len chunks=%d, len newChunks=%d\n", len(chunks), len(newChunks))
 
-	if !newPackFilled {
-		fmt.Printf("!fillNewPack: offset=%d, maxPackSize=%d\n", offset, ds.maxPackSize)
-		return chunks, nil
+	if !newChunksFilled {
+		if len(packIDs) < 5 {
+			fmt.Printf("!fillNewPack: offset=%d, maxPackSize=%d\n", offset, ds.maxPackSize)
+			return chunks, nil
+		}
+		// no remaining chunks
+		return nil, newChunks
 	}
 
-	return chunks[i:], newPack
+	return chunks[i:], newChunks
 }

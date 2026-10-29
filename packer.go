@@ -96,7 +96,7 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 // Should be passed to CompactNext in a loop
 func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
 	packs, err := p.metadataStore.PackInfoAll()
-	fmt.Printf("Compactable: %d packs from metadata\n", len(packs))
+	fmt.Printf("\nCompactable: %d packs from metadata\n", len(packs))
 	if err != nil {
 		return nil, fmt.Errorf("getting all packs: %w", err)
 	}

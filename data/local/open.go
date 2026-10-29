@@ -26,11 +26,11 @@ func (ds *dataStore) openPackWriteNext() (int64, error) {
 	return size, nil
 }
 
-// Automatically opens the next snapshot.
+// Automatically opens the next pack.
 //
-// if there already are snapshots in active, it picks the largest unlocked pack.
+// if there already are packs in active, it picks the largest unlocked pack.
 //
-// if there are no active snapshots and there is a completed dir,
+// if there are no active packs and there is a completed dir,
 // it finds the latest pack in completed and starts opening from that id +1.
 //
 // if there are no active and no completed packs, it starts opening packs from 0.
