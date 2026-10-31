@@ -47,7 +47,7 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		return nil
 	}
 
-	for range 2 {
+	for range 3 {
 
 		ci, err := p.dataStore.Put(data)
 
