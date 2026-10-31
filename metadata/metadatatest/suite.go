@@ -34,6 +34,10 @@ func RunSuite(t *testing.T, factory StoreFactory) {
 			name: "UpdateChunk",
 			run: testUpdateChunk,
 		},
+		{
+			name: "PackSizes",
+			run: testPackSizes,
+		},
 	}
 
 	for _, tt := range tests {
@@ -183,6 +187,109 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 	if pi[2].ChunkCount != 1 {
 		t.Fatal("expected chunk count to be 1 for pack 2, received: %d", pi[2].ChunkCount)
 	}
+}
+
+func testPackSizes(t *testing.T, ms packer.MetadataStore) {
+	var chunks = []packer.ChunkInfoWithID{
+		{
+			Id: []byte("c1"),
+			ChunkInfo: packer.ChunkInfo{
+				PackID: 1,
+				Offset: 2,
+				Size: 20,
+			},
+		},
+		{
+			Id: []byte("c2"),
+			ChunkInfo: packer.ChunkInfo{
+				PackID: 1,
+				Offset: 138782,
+				Size: 13,
+			},
+		},
+		{
+			Id: []byte("c3"),
+			ChunkInfo: packer.ChunkInfo{
+				PackID: 1,
+				Offset: 1000,
+				Size: 300,
+			},
+		},
+	}
+
+	if err := ms.PutChunks(chunks); err != nil {
+		t.Fatal(err)
+	}
+
+	pi, err := ms.PackInfo([]uint64{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pack := pi[1]
+
+	if expectedCount := uint32(len(chunks)); pack.ChunkCount != expectedCount {
+		t.Fatalf("expected there to be %d chunks, received %d", expectedCount, pack.ChunkCount)
+	}
+
+	if expectedSize := uint64(chunks[0].Size + chunks[1].Size + chunks[2].Size); pack.Size != expectedSize {
+		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
+	}
+
+
+	// moved one of the chunks to another pack
+
+	chunks[2].PackID = 2
+
+	if err := ms.PutChunks(chunks); err != nil {
+		t.Fatal(err)
+	}
+
+	pi, err = ms.PackInfo([]uint64{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pack = pi[1]
+	if expectedCount := uint32(len(chunks)-1); pack.ChunkCount != expectedCount {
+		t.Fatalf("expected there to be %d chunks, received %d", expectedCount, pack.ChunkCount)
+	}
+	if expectedSize := uint64(chunks[0].Size + chunks[1].Size); pack.Size != expectedSize {
+		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
+	}
+
+	pack = pi[2]
+	if expectedCount := uint32(1); pack.ChunkCount != expectedCount {
+		t.Fatalf("expected there to be %d chunks, received %d", expectedCount, pack.ChunkCount)
+	}
+	if expectedSize := uint64(chunks[2].Size); pack.Size != expectedSize {
+		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
+	}
+
+
+	// deleted chunk
+
+	if err := ms.MarkCompleted(1); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ms.Delete([][]byte{chunks[1].Id}); err != nil {
+		t.Fatal(err)
+	}
+
+	pi, err = ms.PackInfo([]uint64{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pack = pi[1]
+	if expectedCount := uint32(1); pack.ChunkCount != expectedCount {
+		t.Fatalf("expected there to be %d chunks, received %d", expectedCount, pack.ChunkCount)
+	}
+	if expectedSize := uint64(chunks[0].Size); pack.Size != expectedSize {
+		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
+	}
+
 }
 
 func chunksExist(t *testing.T, ms packer.MetadataStore, ids [][]byte, shouldExist bool, msg string) {

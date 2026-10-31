@@ -38,7 +38,9 @@ type DataStore interface {
 	// Meaning that the chunks in smallest packID should be first.
 	FillNewPack(chunks []ChunkInfoWithID) (chunksRest []ChunkInfoWithID, chunksNewPack []ChunkInfoWithID)
 
-	CompactNextPack(packID uint64, chunks []ChunkInfoWithID) (CompactInfo, error)
+	// Creates a new pack and puts all the chunks into it.
+	// The chunks starts as active and once all chunks have been copied to it, it moves it to complete.
+	CompactToPack(packID uint64, chunks []ChunkInfoWithID) (CompactInfo, error)
 
 	// Deletes packs, returning total byte amount removed.
 	// Only use for packs that are not referenced by an existing chunk.

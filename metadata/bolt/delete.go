@@ -19,12 +19,12 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 
 		for _, id := range ids {
 
-			chunkInfoBytes := bucket.chunks.Get(id)
-			if chunkInfoBytes == nil {
+			chunkInfoValue := bucket.chunks.Get(id)
+			if chunkInfoValue == nil {
 				continue
 			}
 
-			chunkInfo, err := packer.BytesToChunkInfo(chunkInfoBytes)
+			chunkInfo, err := packer.BytesToChunkInfo(chunkInfoValue)
 			if err != nil {
 				return err
 			}

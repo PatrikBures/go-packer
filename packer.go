@@ -55,19 +55,24 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		// it first checks if there is an existing one it can continue on,
 		// otherwise it allocates a new one.
 		if errors.Is(err, ErrNewPack) {
-			err := p.dataStore.SwitchPackExisting()
-			if errors.Is(err, ErrNewPack) {
+			if err := p.dataStore.SwitchPackExisting(); errors.Is(err, ErrNewPack) {
 				newPackID, err := p.metadataStore.AllocatePack()
 				if err != nil {
 					return fmt.Errorf("allocating new pack: %w", err)
 				}
+				oldPackID := p.dataStore.CurrentPackID()
+				if err := p.metadataStore.MarkCompleted(oldPackID); err != nil {
+					return fmt.Errorf("marking pack %d as completed: %w", oldPackID, err)
+				}
+
 				if err := p.dataStore.SwitchPack(newPackID); err != nil {
 					return fmt.Errorf("switching pack %d: %w", newPackID, err)
 				}
+			} else if err != nil {
+				return fmt.Errorf("switching pack to an existing one: %w", err)
 			}
 			continue
-		}
-		if err != nil {
+		} else if err != nil {
 			return fmt.Errorf("failed writing chunk to pack: %w", err)
 		}
 		if err := p.metadataStore.Put(id, ci); err != nil {
@@ -169,12 +174,12 @@ func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, Com
 		return nil, CompactInfo{}, fmt.Errorf("allocating new pack: %w", err)
 	}
 
-	compInfo, err := p.dataStore.CompactNextPack(newPackID, chunks)
+	compInfo, err := p.dataStore.CompactToPack(newPackID, chunks)
 	if err != nil {
 		return nil, CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
 	}
 	if err := p.metadataStore.PutChunks(chunksNewPack); err != nil {
-		return nil, CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunks), err)
+		return nil, CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunksNewPack), err)
 	}
 
 	return chunksRest, compInfo, nil
@@ -188,7 +193,7 @@ func (p *Packager) Compact() (CompactInfo, error) {
 		return CompactInfo{}, err
 	}
 
-    fmt.Printf("Compact: got %d chunks to compact\n", len(chunks))  // ADD
+    fmt.Printf("Compact: got %d chunks to compact\n", len(chunks))
 
 	var compInfoAll CompactInfo
 	for i := 0 ; ; i++ {
@@ -237,6 +242,7 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 		if err != nil {
 			return CompactInfo{}, err
 		}
+		fmt.Printf("found %d packs to delete\n", len(packs))
 		if len(packs) == 0 || nextPackID-1 == packs[len(packs)-1] {
 			break
 		}

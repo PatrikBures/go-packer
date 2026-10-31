@@ -59,12 +59,13 @@ const (
 )
 
 const (
-	PackInfoIdxSize  = 0
-	PackInfoIdxCount = 8
-	PackInfoIdxState = 12
+	PI1Size      = 0
+	PI2Count     = 8
+	PI3State     = 12
+
+	PackInfoSize = 13
 )
 
-const PackInfoSize = 13
 type PackInfo struct {
 	Size       uint64    // [0:8]
 	ChunkCount uint32    // [8:12]
@@ -79,9 +80,9 @@ func (pi *PackInfo) Bytes() []byte {
 
 func (pi *PackInfo) PutBytes(buf []byte) {
 	_ = buf[PackInfoSize-1] // early bound check
-	binary.LittleEndian.PutUint64(buf[PackInfoIdxSize:PackInfoIdxCount], pi.Size)
-	binary.LittleEndian.PutUint32(buf[PackInfoIdxCount:PackInfoIdxState], pi.ChunkCount)
-	buf[12] = byte(pi.State)
+	binary.LittleEndian.PutUint64(buf[PI1Size:PI2Count], pi.Size)
+	binary.LittleEndian.PutUint32(buf[PI2Count:PI3State], pi.ChunkCount)
+	buf[PI3State] = byte(pi.State)
 }
 
 func BytesToPackInfo(b []byte) (PackInfo, error) {
@@ -89,26 +90,33 @@ func BytesToPackInfo(b []byte) (PackInfo, error) {
 		return PackInfo{}, ErrSliceTooSmall
 	}
 	return PackInfo{
-		Size:       binary.LittleEndian.Uint64(b[PackInfoIdxSize:PackInfoIdxCount]),
-		ChunkCount: binary.LittleEndian.Uint32(b[PackInfoIdxCount:PackInfoIdxState]),
-		State:      PackState(b[PackInfoIdxState]), // Unsafe conversion, it will crash if the byte is not a valid PackState.
+		Size:       binary.LittleEndian.Uint64(b[PI1Size:PI2Count]),
+		ChunkCount: binary.LittleEndian.Uint32(b[PI2Count:PI3State]),
+		State:      PackState(b[PI3State]), // Unsafe conversion, it will crash if the byte is not a valid PackState.
 	}, nil
 }
 
 
 
-const ChunkInfoSize = 20
 
 type ChunkInfo struct {
 	PackID    uint64 // [0:8]
 	Offset    uint64 // [8:16]
-	Size uint32 // [16:20]
+	Size      uint32 // [16:20]
 }
 
 type ChunkInfoWithID struct {
 	ChunkInfo
 	Id []byte
 }
+
+const (
+	CI1PackID     = 0
+	CI2Offset     = 8
+	CI3Size       = 16
+
+	ChunkInfoSize = 20
+)
 
 func (ci *ChunkInfo) Bytes() []byte {
 	var buf [ChunkInfoSize]byte
@@ -121,9 +129,9 @@ func (ci *ChunkInfo) Bytes() []byte {
 // panics if buf is len is less than 20
 func (ci *ChunkInfo) PutBytes(buf []byte) {
 	_ = buf[ChunkInfoSize-1] // early bound check
-	binary.LittleEndian.PutUint64(buf, ci.PackID)
-	binary.LittleEndian.PutUint64(buf[8:16], ci.Offset)
-	binary.LittleEndian.PutUint32(buf[16:20], ci.Size)
+	binary.LittleEndian.PutUint64(buf[CI1PackID:CI2Offset], ci.PackID)
+	binary.LittleEndian.PutUint64(buf[CI2Offset:CI3Size],   ci.Offset)
+	binary.LittleEndian.PutUint32(buf[CI3Size:ChunkInfoSize],        ci.Size)
 }
 
 // can return ErrSliceTooSmall
@@ -132,8 +140,8 @@ func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
 		return ChunkInfo{}, ErrSliceTooSmall
 	}
 	return ChunkInfo{
-		PackID:    binary.LittleEndian.Uint64(b[0:8]),
-		Offset:    binary.LittleEndian.Uint64(b[8:16]),
-		Size: binary.LittleEndian.Uint32(b[16:20]),
+		PackID:    binary.LittleEndian.Uint64(b[CI1PackID:CI2Offset]),
+		Offset:    binary.LittleEndian.Uint64(b[CI2Offset:CI3Size]),
+		Size:      binary.LittleEndian.Uint32(b[CI3Size:ChunkInfoSize]),
 	}, nil
 }

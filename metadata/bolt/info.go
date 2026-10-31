@@ -26,7 +26,7 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 				return nil
 			}
 
-			packID := binary.LittleEndian.Uint64(v[0:8])
+			packID := binary.LittleEndian.Uint64(v[packer.CI1PackID:packer.CI2Offset])
 			if _, ok := packsMap[packID]; !ok {
 				return nil
 			}
@@ -82,6 +82,7 @@ func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo,
 				if len(v) < packer.PackInfoSize {
 					return nil
 				}
+
 				packID := binary.LittleEndian.Uint64(k[0:8])
 
 				packInfo, err := packer.BytesToPackInfo(v)
@@ -97,6 +98,7 @@ func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo,
 				if len(v) < packer.PackInfoSize {
 					return nil
 				}
+
 				packID := binary.LittleEndian.Uint64(k[0:8])
 
 				if _, ok := packsMap[packID]; !ok {
@@ -140,7 +142,7 @@ func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]pac
 				return nil
 			}
 
-			packID := binary.LittleEndian.Uint64(v[0:8])
+			packID := binary.LittleEndian.Uint64(v[packer.CI1PackID:packer.CI2Offset])
 			if _, ok := packs[packID]; !ok {
 				return nil
 			}

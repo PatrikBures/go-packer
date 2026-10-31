@@ -53,12 +53,12 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 
 	ratio := float64(pack.Size) / float64(size) 
 	ok := ratio <= ds.compactPackRatio
-	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
-	//        packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
+	fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
+	       packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
 	return  ok, nil
 }
 
-func (ds *dataStore) CompactNextPack(packID uint64, chunks []packer.ChunkInfoWithID) (compactInfo packer.CompactInfo, err error) {
+func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithID) (compactInfo packer.CompactInfo, err error) {
 
 	packPath := ds.activePackPath(packID)
 

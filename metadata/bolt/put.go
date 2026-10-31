@@ -166,8 +166,8 @@ func (ms *metadataStore) MarkCompleted(packID uint64) error {
 			return fmt.Errorf("%w: %d", packer.ErrPackNotFound, packID)
 		}
 		var packIDBytes [packer.PackInfoSize]byte
-		copy(packIDVal, packIDBytes[:])
-		packIDBytes[packer.PackInfoIdxState] = byte(packer.PackStateCompleted)
+		copy(packIDBytes[:], packIDVal)
+		packIDBytes[packer.PI3State] = byte(packer.PackStateCompleted)
 
 		return bp.Put(packIDKey[:], packIDBytes[:])
 	})
