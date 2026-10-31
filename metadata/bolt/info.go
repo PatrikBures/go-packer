@@ -11,20 +11,43 @@ import (
 )
 
 func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
-	packsMap := sliceToMapUint64(packIDs)
+	if len(packIDs) == 0 {
+		return []packer.ChunkInfo{}, nil
+	}
+	return ms.chunks(packIDs)
+}
+
+func (ms *metadataStore) ChunksAll() ([]packer.ChunkInfo, error) {
+	return ms.chunks(nil)
+}
+
+
+// if packids is nil, it will return ALL chunks.
+func (ms *metadataStore) chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 
 	chunks := make([]packer.ChunkInfo, 0, 128)
 
-	if err := ms.db.View(func(tx *bolt.Tx) error {
-		cb := tx.Bucket(bucketChunks)
-		if cb == nil {
-			return ErrBucketNotFound
-		}
-
-		return cb.ForEach(func(k, v []byte) error {
+	var fn func(k, v []byte) error
+	if packIDs == nil {
+		fn = func(k, v []byte) error {
 			if len(v) < packer.ChunkInfoSize {
 				return nil
 			}
+
+			ci, err := packer.BytesToChunkInfo(v)
+			if err != nil {
+				return err
+			}
+
+			chunks = append(chunks, ci)
+			return nil
+		}
+	} else {
+		fn = func(k, v []byte) error {
+			if len(v) < packer.ChunkInfoSize {
+				return nil
+			}
+			packsMap := sliceToMapUint64(packIDs)
 
 			packID := binary.LittleEndian.Uint64(v[packer.CI1PackID:packer.CI2Offset])
 			if _, ok := packsMap[packID]; !ok {
@@ -38,10 +61,19 @@ func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
 
 			chunks = append(chunks, ci)
 			return nil
-		})
+		}
+	}
+
+	if err := ms.db.View(func(tx *bolt.Tx) error {
+		cb := tx.Bucket(bucketChunks)
+		if cb == nil {
+			return ErrBucketNotFound
+		}
+		return cb.ForEach(fn)
 	}); err != nil {
 		return nil, err
 	}
+
 	return chunks, nil
 }
 

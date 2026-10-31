@@ -18,16 +18,20 @@ type MetadataStore interface {
 
 	Get(id []byte) (ChunkInfo, error)
 
-	// Check if a chunk with id exists.
-	Exists(id []byte) (bool, error)
-
-	Delete(id [][]byte) error
-
-	// Get packs that are in any of the provided packIDs.
+	// Get chunks that are in any of the provided packIDs.
 	Chunks(packIDs []uint64) ([]ChunkInfo, error)
+
+	// Get all chunks.
+	ChunksAll() ([]ChunkInfo, error)
 
 	// Get all chunk IDs
 	ChunkIDsAll() ([][]byte, error)
+
+	// Check if a chunk with id exists.
+	Exists(id []byte) (bool, error)
+
+	// Deletes chunks.
+	Delete(id [][]byte) error
 
 	PackInfo(packIDs []uint64) (map[uint64]PackInfo, error)
 
@@ -38,11 +42,19 @@ type MetadataStore interface {
 	// Removes packIDs which do not exist, returning the updated slice.
 	FilterExistingPacks(packs []uint64) ([]uint64, error)	
 
-	// Returns a batch of packIDs that should be deleted.
+	// Returns a batch of packIDs marked for deletion.
 	// A pack should be deleted if there are no chunks in it.
+	// Will remove the packs returned from the list of packs to be deleted!
+	//
+	// It is intended to be used for looping through packs to be deleted,
+	// and then deleting them in the loop until it returns an empty slice.
 	PacksDeleteBatch() ([]uint64, error)
 
-	// Allocates a new pack returning the new packID.
+	// Returns all packIDs marked for deletion.
+	// Sorted by id, smallest first.
+	PacksDelete() ([]uint64, error)
+
+	// Allocates a new unique packID.
 	AllocatePack() (uint64, error)
 
 	// Mark pack as completed
@@ -70,6 +82,11 @@ type PackInfo struct {
 	Size       uint64    // [0:8]
 	ChunkCount uint32    // [8:12]
 	State      PackState // [12:13]
+}
+
+type PackInfoWithID struct {
+	PackInfo
+	Id uint64
 }
 
 func (pi *PackInfo) Bytes() []byte {

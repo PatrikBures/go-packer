@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	bolt "go.etcd.io/bbolt"
 	"go.pabu.dev/packer"
@@ -105,6 +106,8 @@ func (ms *metadataStore) PacksDeleteBatch() ([]uint64, error) {
 				return err
 			}
 
+			// the foreach function will only end once an error is returned.
+			// so it returns an error that is handled.
 			if len(packIDs) >= deleteBatchQty {
 				return io.EOF
 			}
@@ -118,6 +121,31 @@ func (ms *metadataStore) PacksDeleteBatch() ([]uint64, error) {
 	}); err != nil {
 		return nil, err
 	}
+
+	return packIDs, nil
+}
+
+
+func (ms *metadataStore) PacksDelete() ([]uint64, error) {
+	var packIDs []uint64
+
+	if err := ms.db.View(func(tx *bolt.Tx) error {
+		bpd := tx.Bucket(bucketPacksDelete)
+		if bpd == nil {
+			return ErrBucketNotFound
+		}
+
+		return bpd.ForEach(func(k, _ []byte) error {
+			packID := binary.LittleEndian.Uint64(k)
+			packIDs = append(packIDs, packID)
+
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+
+	slices.Sort(packIDs)
 
 	return packIDs, nil
 }
