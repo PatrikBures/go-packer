@@ -61,7 +61,7 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		if errors.Is(err, ErrNewPack) {
 			oldPackID := p.dataStore.CurrentPackID()
 
-			if err := p.dataStore.SwitchPackExisting(); errors.Is(err, ErrNewPack) {
+			if err := p.dataStore.SwitchPackExisting(int64(len(data))); errors.Is(err, ErrNewPack) {
 				newPackID, err := p.metadataStore.AllocatePack()
 				if err != nil {
 					return fmt.Errorf("allocating new pack: %w", err)

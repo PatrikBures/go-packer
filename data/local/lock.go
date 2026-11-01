@@ -16,7 +16,7 @@ type fileItem struct {
 }
 
 // if flock and err are nil, it means that no active pack was locked.
-func (ds *dataStore) lockLargestPack() (*flock.Flock, uint64, error) {
+func (ds *dataStore) lockLargestPack(minSize int64) (*flock.Flock, uint64, error) {
 
 	files, err := sortedFilesLargestDesc(ds.activeDir())
 	if err != nil {
@@ -36,6 +36,10 @@ func (ds *dataStore) lockLargestPack() (*flock.Flock, uint64, error) {
 			return nil, 0, err
 		}
 		if packID == ds.CurrentPackID() {
+			continue
+		}
+
+		if f.size+minSize+prefixLen > ds.maxPackSize {
 			continue
 		}
 

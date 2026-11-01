@@ -89,7 +89,7 @@ func (ds *dataStore) Init() error {
 		}
 	}
 
-	if err := ds.SwitchPackExisting(); err != nil {
+	if err := ds.SwitchPackExisting(0); err != nil {
 		return err
 	}
 

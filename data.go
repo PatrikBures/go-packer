@@ -51,8 +51,8 @@ type DataStore interface {
 	// Switches current active pack, initializing it. Moves previous pack to completed.
 	SwitchPack(packID uint64) error
 
-	// Switches current active pack to a non-locked existing pack. Moves previous pack to completed. 
-	SwitchPackExisting() error
+	// Switches current active pack to a non-locked existing with at least minSize free pack. Moves previous pack to completed. 
+	SwitchPackExisting(minSize int64) error
 
 	Close() error
 }

@@ -23,9 +23,9 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 	return ds.createPack(packID, lock)
 }
 
-func (ds *dataStore) SwitchPackExisting() (err error) {
+func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 
-	lock, packID, err := ds.lockLargestPack()
+	lock, packID, err := ds.lockLargestPack(minSize)
 	if err != nil {
 		return fmt.Errorf("locking largest pack: %w", err)
 	}
