@@ -28,8 +28,11 @@ var CLI struct {
 func main() {
 	ctx := kong.Parse(&CLI)
 
+	_, err := os.Stat(CLI.DbPath)
+	ctx.FatalIfErrorf(err)
+
 	ms := metadata.New(CLI.DbPath)
-	err := ms.Init()
+	err = ms.Init()
 	ctx.FatalIfErrorf(err)
 
 	err = ctx.Run(&Context{
