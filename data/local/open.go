@@ -23,7 +23,7 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 	return ds.createPack(packID, lock)
 }
 
-func (ds *dataStore) SwitchPackExisting() error {
+func (ds *dataStore) SwitchPackExisting() (err error) {
 
 	lock, packID, err := ds.lockLargestPack()
 	if err != nil {
@@ -33,20 +33,36 @@ func (ds *dataStore) SwitchPackExisting() error {
 		return packer.ErrNewPack
 	}
 
+	defer func() {
+		if err == nil { return }
+		_ = lock.Unlock()
+	}()
+
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_RDWR, 0664)
+	if err != nil {
+		return fmt.Errorf("opening existing pack: %w", err)
+	}
+
+	defer func() {
+		if err == nil { return }
+		_ = f.Close()
+	}()
+
 	stat, err := f.Stat()
 	if err != nil {
 		return fmt.Errorf("stating pack: %w", err)
 	}
 
-	size := stat.Size()
+	if err = ds.movePackCompleted(); err != nil {
+		return fmt.Errorf("completing pack: %w", err)
+	}
 
 	ds.currentPackID = packID
 	ds.currentPackLock = lock
 	ds.currentPackFile = f
-	ds.currentPackOffset = size
+	ds.currentPackOffset = stat.Size()
 
-	return ds.movePackCompleted()
+	return nil
 }
 
 // Creates new pack, moves previous pack to completed and updates currentPack* vars
@@ -69,11 +85,8 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
 		size = headerLen
 	}
 
-	// move previous open pack to completed
-	if ds.currentPackLock != nil {
-		if err := ds.movePackCompleted(); err != nil {
-			return err
-		}
+	if err := ds.movePackCompleted(); err != nil {
+		return err
 	}
 
 	ds.currentPackID = packID
@@ -86,6 +99,10 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
 
 // moves current pack to completed, closes, unlocks it and updates header state.
 func (ds *dataStore) movePackCompleted() error {
+	if ds.currentPackLock == nil {
+		return nil
+	}
+
 	p := ds.completedPackPath(ds.currentPackID)
 	if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
 		return fmt.Errorf("creating completed dir: %w", err)

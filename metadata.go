@@ -57,7 +57,7 @@ type MetadataStore interface {
 	// Allocates a new unique packID.
 	AllocatePack() (uint64, error)
 
-	// Mark pack as completed
+	// Mark pack as completed. If pack does not exist returns nil.
 	MarkCompleted(packID uint64) error
 }
 

@@ -29,7 +29,16 @@ func (ds *dataStore) lockLargestPack() (*flock.Flock, uint64, error) {
 
 	var locked bool
 	var lock *flock.Flock
+	var packID uint64
 	for _, f := range files {
+		packID, err = packIdFromPath(f.name)
+		if err != nil {
+			return nil, 0, err
+		}
+		if packID == ds.CurrentPackID() {
+			continue
+		}
+
 		fp := filepath.Join(ds.activeDir(), f.name)
 
 		lock = flock.New(fp)
@@ -52,10 +61,6 @@ func (ds *dataStore) lockLargestPack() (*flock.Flock, uint64, error) {
 		return nil, 0, nil
 	}
 
-	packID, err := packIdFromPath(lock.Path())
-	if err != nil {
-		return nil, 0, err
-	}
 
 	return lock, packID, nil
 }

@@ -163,7 +163,7 @@ func (ms *metadataStore) MarkCompleted(packID uint64) error {
 
 		packIDVal := bp.Get(packIDKey[:])
 		if packIDVal == nil {
-			return fmt.Errorf("%w: %d", packer.ErrPackNotFound, packID)
+			return nil
 		}
 		var packIDBytes [packer.PackInfoSize]byte
 		copy(packIDBytes[:], packIDVal)

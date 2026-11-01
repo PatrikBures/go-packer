@@ -59,21 +59,22 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		// it first checks if there is an existing one it can continue on,
 		// otherwise it allocates a new one.
 		if errors.Is(err, ErrNewPack) {
+			oldPackID := p.dataStore.CurrentPackID()
+
 			if err := p.dataStore.SwitchPackExisting(); errors.Is(err, ErrNewPack) {
 				newPackID, err := p.metadataStore.AllocatePack()
 				if err != nil {
 					return fmt.Errorf("allocating new pack: %w", err)
 				}
-				oldPackID := p.dataStore.CurrentPackID()
-				if err := p.metadataStore.MarkCompleted(oldPackID); err != nil {
-					return fmt.Errorf("marking pack %d as completed: %w", oldPackID, err)
-				}
-
 				if err := p.dataStore.SwitchPack(newPackID); err != nil {
 					return fmt.Errorf("switching pack %d: %w", newPackID, err)
 				}
 			} else if err != nil {
 				return fmt.Errorf("switching pack to an existing one: %w", err)
+			}
+
+			if err := p.metadataStore.MarkCompleted(oldPackID); err != nil {
+				return fmt.Errorf("marking pack %d as completed: %w", oldPackID, err)
 			}
 
 			continue
