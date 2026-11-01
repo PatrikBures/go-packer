@@ -10,28 +10,21 @@ import (
 	"go.pabu.dev/packer"
 )
 
-func (ds *dataStore) NormalizePacks(packs map[uint64]packer.PackInfo) {
-	for k, v := range packs {
-		packs[k] = normalizePack(v)
-	}
-}
-
 // Updates the total size to the expected file size including header and all prefixes.
-func normalizePack(pack packer.PackInfo) packer.PackInfo {
-	pack.Size += headerLen + (uint64(pack.ChunkCount) * prefixLen)
-	return pack
+func (ds *dataStore) NormalizePackSize(packSize uint64, chunkCount uint32) uint64 {
+	return packSize + headerLen + (uint64(chunkCount) * prefixLen)
 }
 
 
 func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 	for packID, info := range packs {
-		np := normalizePack(info)
-		if ok, err := ds.shouldCompact(packID, np); err != nil {
+		info.Size = ds.NormalizePackSize(info.Size, info.ChunkCount)
+		if ok, err := ds.shouldCompact(packID, info); err != nil {
 			return fmt.Errorf("filtering packID %d: %w", packID, err)
 		} else if !ok {
 			delete(packs, packID)
 		} else {
-			packs[packID] = np
+			packs[packID] = info
 		}
 	}
 	return nil
@@ -53,8 +46,8 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 
 	ratio := float64(pack.Size) / float64(size) 
 	ok := ratio <= ds.compactPackRatio
-	fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
-	       packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
+	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
+	//        packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
 	return  ok, nil
 }
 

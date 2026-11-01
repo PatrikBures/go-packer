@@ -13,14 +13,16 @@ type DataStore interface {
 
 	CurrentPackID() uint64
 
+	MaxPackSize() int64
+
 	// will only put the amount in Size from ChunkInfo
 	//
 	// returns the offset excluding the headersize but not the size prefix for each chunk
 	Put(data []byte) (ChunkInfo, error)
 	Get(ChunkInfo, []byte) ([]byte, error)
 
-	// Normalizes each pack size.
-	NormalizePacks(packs map[uint64]PackInfo)
+	// Normalizes pack size.
+	NormalizePackSize(size uint64, chunkCount uint32) uint64
 
 	// Removes packs that should not be compacted. It also normalizes each pack.
 	FilterCompactable(packs map[uint64]PackInfo) error

@@ -29,11 +29,24 @@ func (ds *dataStore) SwitchPackExisting() error {
 	if err != nil {
 		return fmt.Errorf("locking largest pack: %w", err)
 	}
-	if lock != nil {
+	if lock == nil {
 		return packer.ErrNewPack
 	}
 
-	return ds.createPack(packID, lock)
+	f, err := os.OpenFile(ds.activePackPath(packID), os.O_RDWR, 0664)
+	stat, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stating pack: %w", err)
+	}
+
+	size := stat.Size()
+
+	ds.currentPackID = packID
+	ds.currentPackLock = lock
+	ds.currentPackFile = f
+	ds.currentPackOffset = size
+
+	return ds.movePackCompleted()
 }
 
 // Creates new pack, moves previous pack to completed and updates currentPack* vars
@@ -58,33 +71,8 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
 
 	// move previous open pack to completed
 	if ds.currentPackLock != nil {
-		p := ds.completedPackPath(ds.currentPackID)
-		if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
-			return fmt.Errorf("creating completed dir: %w", err)
-		}
-
-		var h header
-		if err := h.ReadAtFile(ds.currentPackFile); err != nil {
-			return fmt.Errorf("reading header from prev pack: %w", err)
-		}
-		h.State = stateCompleted
-		if err := h.WriteAtFile(ds.currentPackFile); err != nil {
-			return fmt.Errorf("writing header to prev pack: %w", err)
-		}
-
-		if err := ds.currentPackFile.Sync(); err != nil {
-			return fmt.Errorf("syncing prev pack: %w", err)
-		}
-		if err := ds.currentPackFile.Close(); err != nil {
-			return fmt.Errorf("closing prev pack: %w", err)
-		}
-
-		if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
-			return fmt.Errorf("renaming prev pack to completed: %w", err)
-		}
-
-		if err := ds.currentPackLock.Unlock(); err != nil {
-			return fmt.Errorf("unlocking prev pack: %w", err)
+		if err := ds.movePackCompleted(); err != nil {
+			return err
 		}
 	}
 
@@ -92,6 +80,40 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
 	ds.currentPackLock = lock
 	ds.currentPackFile = f
 	ds.currentPackOffset = size
+
+	return nil
+}
+
+// moves current pack to completed, closes, unlocks it and updates header state.
+func (ds *dataStore) movePackCompleted() error {
+	p := ds.completedPackPath(ds.currentPackID)
+	if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
+		return fmt.Errorf("creating completed dir: %w", err)
+	}
+
+	var h header
+	if err := h.ReadAtFile(ds.currentPackFile); err != nil {
+		return fmt.Errorf("reading header from prev pack: %w", err)
+	}
+	h.State = stateCompleted
+	if err := h.WriteAtFile(ds.currentPackFile); err != nil {
+		return fmt.Errorf("writing header to prev pack: %w", err)
+	}
+
+	if err := ds.currentPackFile.Sync(); err != nil {
+		return fmt.Errorf("syncing prev pack: %w", err)
+	}
+	if err := ds.currentPackFile.Close(); err != nil {
+		return fmt.Errorf("closing prev pack: %w", err)
+	}
+
+	if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
+		return fmt.Errorf("renaming prev pack to completed: %w", err)
+	}
+
+	if err := ds.currentPackLock.Unlock(); err != nil {
+		return fmt.Errorf("unlocking prev pack: %w", err)
+	}
 
 	return nil
 }

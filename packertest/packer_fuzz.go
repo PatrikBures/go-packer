@@ -23,7 +23,7 @@ type RunRandomActionsConfig struct {
 }
 
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
-	root := t.TempDir()
+	root := tempDir(t)
 
 	fmt.Println("=== Running random actions")
 	fmt.Println("  - Root dir:           ", root)

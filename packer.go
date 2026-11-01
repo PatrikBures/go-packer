@@ -47,6 +47,10 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		return nil
 	}
 
+	if normalizedPackSize := int64(p.dataStore.NormalizePackSize(uint64(len(data)), 1)); p.dataStore.MaxPackSize() < normalizedPackSize {
+		return fmt.Errorf("chunk with size %d exceeds pack capacity by %d bytes", len(data), normalizedPackSize - p.dataStore.MaxPackSize())
+	}
+
 	for range 3 {
 
 		ci, err := p.dataStore.Put(data)
@@ -71,10 +75,13 @@ func (p *Packager) Put(id []byte, data []byte) error {
 			} else if err != nil {
 				return fmt.Errorf("switching pack to an existing one: %w", err)
 			}
+
 			continue
+
 		} else if err != nil {
 			return fmt.Errorf("failed writing chunk to pack: %w", err)
 		}
+
 		if err := p.metadataStore.Put(id, ci); err != nil {
 			return fmt.Errorf("failed adding chunk to metadata store: %w", err)
 		}
@@ -120,7 +127,7 @@ func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.dataStore.NormalizePacks(packs)
+	p.NormalizePacks(packs)
 	return packs, nil
 }
 
@@ -130,8 +137,15 @@ func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.dataStore.NormalizePacks(packs)
+	p.NormalizePacks(packs)
 	return packs, nil
+}
+
+func (p *Packager) NormalizePacks(packs map[uint64]PackInfo) {
+	for k, v := range packs {
+		v.Size = p.dataStore.NormalizePackSize(v.Size, v.ChunkCount)
+		packs[k] = v
+	}
 }
 
 
@@ -231,7 +245,6 @@ func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
 
 // Deletes packs from dataStore which are not referenced in metadataStore
 func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
-	var nextPackID uint64
 	var packs []uint64
 
 	for {
@@ -243,11 +256,11 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 			return CompactInfo{}, err
 		}
 		fmt.Printf("found %d packs to delete\n", len(packs))
-		if len(packs) == 0 || nextPackID-1 == packs[len(packs)-1] {
+		if len(packs) == 0 {
 			break
 		}
-		nextPackID = packs[len(packs)-1] + 1
 
+		fmt.Printf("sent %d packs to delete\n", len(packs))
 		bytesRemoved, err := p.dataStore.DeletePacks(packs)
 		if err != nil {
 			return CompactInfo{}, err

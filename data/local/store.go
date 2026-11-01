@@ -107,3 +107,7 @@ func (ds *dataStore) CurrentPackID() uint64 {
 	return ds.currentPackID
 }
 
+func (ds *dataStore) MaxPackSize() int64 {
+	return ds.maxPackSize
+}
+
