@@ -157,6 +157,10 @@ func (ms *metadataStore) MarkCompleted(packID uint64) error {
 		if bp == nil {
 			return ErrBucketNotFound
 		}
+		bpd := tx.Bucket(bucketPacksDelete)
+		if bpd == nil {
+			return ErrBucketNotFound
+		}
 
 		var packIDKey [8]byte
 		binary.LittleEndian.PutUint64(packIDKey[:], packID)
@@ -165,6 +169,17 @@ func (ms *metadataStore) MarkCompleted(packID uint64) error {
 		if packIDVal == nil {
 			return nil
 		}
+
+		chunkCount := binary.LittleEndian.Uint32(packIDVal[packer.PI2Count:packer.PI3State])
+
+		// if there are no chunks, mark pack for deletion right away
+		if chunkCount == 0 {
+			if err := bp.Delete(packIDKey[:]); err != nil {
+				return err
+			}
+			return bpd.Put(packIDKey[:], nil)
+		}
+
 		var packIDBytes [packer.PackInfoSize]byte
 		copy(packIDBytes[:], packIDVal)
 		packIDBytes[packer.PI3State] = byte(packer.PackStateCompleted)

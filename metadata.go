@@ -58,6 +58,7 @@ type MetadataStore interface {
 	AllocatePack() (uint64, error)
 
 	// Mark pack as completed. If pack does not exist returns nil.
+	// If pack has no chunks, marks it for deletion.
 	MarkCompleted(packID uint64) error
 }
 
