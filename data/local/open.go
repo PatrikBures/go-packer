@@ -66,12 +66,21 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 }
 
 // Creates new pack, moves previous pack to completed and updates currentPack* vars
-func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
+func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
+	defer func() {
+		if err == nil { return }
+		_ = lock.Unlock()
+	}()
 
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_CREATE|os.O_RDWR, 0664)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
 	}
+
+	defer func() {
+		if err == nil { return }
+		_ = f.Close()
+	}()
 
 	stat, err := f.Stat()
 	if err != nil {
@@ -85,7 +94,7 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) error {
 		size = headerLen
 	}
 
-	if err := ds.movePackCompleted(); err != nil {
+	if err = ds.movePackCompleted(); err != nil {
 		return err
 	}
 
