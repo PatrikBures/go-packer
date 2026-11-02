@@ -35,10 +35,13 @@ func (ds *dataStore) lockLargestPack(minSize int64) (*flock.Flock, uint64, error
 		if err != nil {
 			return nil, 0, err
 		}
-		if packID == ds.CurrentPackID() {
+
+		// skips pack that is currently open
+		if ds.currentPackFile != nil && packID == ds.currentPackID {
 			continue
 		}
 
+		// skips pack that does not have enough room for a chunk of minSize
 		if f.size+minSize+prefixLen > ds.maxPackSize {
 			continue
 		}

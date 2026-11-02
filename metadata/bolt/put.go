@@ -170,10 +170,9 @@ func (ms *metadataStore) MarkCompleted(packID uint64) error {
 			return nil
 		}
 
-		chunkCount := binary.LittleEndian.Uint32(packIDVal[packer.PI2Count:packer.PI3State])
-
 		// if there are no chunks, mark pack for deletion right away
-		if chunkCount == 0 {
+		if chunkCount := binary.LittleEndian.Uint32(packIDVal[packer.PI2Count:packer.PI3State]); chunkCount == 0 {
+
 			if err := bp.Delete(packIDKey[:]); err != nil {
 				return err
 			}

@@ -30,6 +30,8 @@ func (p *Packager) Init() error {
 		if err := p.dataStore.SwitchPack(newPackID); err != nil {
 			return fmt.Errorf("switching pack to %d: %w", newPackID, err)
 		}
+	} else if err != nil {
+		return fmt.Errorf("initializing dataStore: %w", err)
 	}
 
 	return nil
