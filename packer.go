@@ -191,12 +191,18 @@ func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, Com
 		return nil, CompactInfo{}, fmt.Errorf("allocating new pack: %w", err)
 	}
 
-	compInfo, err := p.dataStore.CompactToPack(newPackID, chunks)
+	compInfo, err := p.dataStore.CompactToPack(newPackID, chunksNewPack)
 	if err != nil {
 		return nil, CompactInfo{}, fmt.Errorf("compacting next pack: %w", err)
 	}
 	if err := p.metadataStore.PutChunks(chunksNewPack); err != nil {
+		if _, derr := p.dataStore.DeletePacks([]uint64{newPackID}); derr != nil {
+			return nil, CompactInfo{}, fmt.Errorf("updating chunks failed (%w) and cleanup of pack %d also failed: %w", err, newPackID, derr)
+		}
 		return nil, CompactInfo{}, fmt.Errorf("updating %d chunks: %w", len(chunksNewPack), err)
+	}
+	if err := p.metadataStore.MarkCompleted(newPackID); err != nil {
+		return nil, CompactInfo{}, fmt.Errorf("marking compacted pack %d as completed: %w", newPackID, err)
 	}
 
 	return chunksRest, compInfo, nil

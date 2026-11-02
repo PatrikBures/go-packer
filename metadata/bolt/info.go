@@ -11,7 +11,7 @@ import (
 )
 
 func (ms *metadataStore) Chunks(packIDs []uint64) ([]packer.ChunkInfo, error) {
-	if len(packIDs) == 0 {
+	if packIDs == nil {
 		return []packer.ChunkInfo{}, nil
 	}
 	return ms.chunks(packIDs)
@@ -91,7 +91,20 @@ func (ms *metadataStore) ChunkIDsAll() ([][]byte, error) {
 	})
 }
 
+
+
 func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
+	if packIDs == nil {
+		return make(map[uint64]packer.PackInfo), nil
+	}
+	return ms.packInfo(packIDs)
+}
+
+func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
+	return ms.packInfo(nil)
+}
+
+func (ms *metadataStore) packInfo(packIDs []uint64) (map[uint64]packer.PackInfo, error) {
 	packInfos := make(map[uint64]packer.PackInfo)
 
 	var packsMap map[uint64]struct{}
@@ -156,9 +169,6 @@ func (ms *metadataStore) PackInfo(packIDs []uint64) (map[uint64]packer.PackInfo,
 	return packInfos, nil
 }
 
-func (ms *metadataStore) PackInfoAll() (map[uint64]packer.PackInfo, error) {
-	return ms.PackInfo(nil)
-}
 
 func (ms *metadataStore) ChunksForPacks(packs map[uint64]packer.PackInfo) ([]packer.ChunkInfoWithID, error) {
 	chunks := make([]packer.ChunkInfoWithID, 0, len(packs)*5)

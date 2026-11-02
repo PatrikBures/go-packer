@@ -31,7 +31,7 @@ func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 }
 
 func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, error) {
-	if packID == ds.currentPackID {
+	if packID == ds.currentPackID || pack.State == packer.PackStateActive {
 		return false, nil
 	}
 
@@ -64,12 +64,8 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 		return packer.CompactInfo{}, fmt.Errorf("did not get lock: %s", ds.activePackPath(packID))
 	}
 	defer func() {
-		if err == nil {
-			return
-		}
-		err = lock.Unlock()
-		if err != nil {
-			err = fmt.Errorf("unlocking pack: %w", err)
+		if lerr := lock.Unlock(); lerr != nil {
+			err = errors.Join(err, fmt.Errorf("unlocking pack: %w", lerr))
 		}
 	}()
 
@@ -79,10 +75,9 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 		return packer.CompactInfo{}, fmt.Errorf("creating file: %w", err)
 	}
 	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(packPath)
-		}
+		if err == nil { return }
+		_ = f.Close()
+		_ = os.Remove(packPath)
 	}()
 
 	h, err := writePackHeader(packID, stateCompacting, f)
@@ -140,9 +135,6 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 	if err = os.Rename(packPath, completedPath); err != nil {
 		_ = os.Remove(completedPath)
 		return packer.CompactInfo{}, fmt.Errorf("moving pack to completed: %w", err)
-	}
-	if err = lock.Unlock(); err != nil {
-		return packer.CompactInfo{}, fmt.Errorf("unlocking pack %d: %w", packID, err)
 	}
 
 	return
