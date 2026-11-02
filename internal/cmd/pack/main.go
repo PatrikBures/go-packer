@@ -55,13 +55,14 @@ func setupPackager(dir string) (*packer.Packager, error) {
 		return nil, err
 	}
 
-	ms, err := metadata.Init(filepath.Join(dir, "metadata.db"))
-	if err != nil {
+	ms := metadata.New(filepath.Join(dir, "metadata.db"))
+	
+	if err := ms.Init(); err != nil {
 		return nil, err
 	}
 
-	ds, err := data.Init(dir, data.WithGrowBuf(true))
-	if err != nil {
+	ds := data.New(dir, data.WithGrowBuf(true))
+	if err := ds.Init(); err != nil {
 		return nil, err
 	}
 

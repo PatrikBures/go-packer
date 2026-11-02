@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"testing"
 
 	"go.pabu.dev/packer"
@@ -24,8 +25,12 @@ func FuzzData12x2(f *testing.F) {
 }
 
 func initData(t *testing.T, dir string, maxPackSize int64) packer.DataStore {
-	ds, err := Init(dir, WithMaxPackSize(maxPackSize))
-	if err != nil {
+	ds := New(dir, WithMaxPackSize(maxPackSize))
+	if err := ds.Init(); errors.Is(err, packer.ErrNewPack) {
+		if err := ds.SwitchPack(1); err != nil {
+			t.Fatal(err)
+		}
+	} else if err != nil {
 		t.Fatal(err)
 	}
 	return ds

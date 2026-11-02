@@ -55,7 +55,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			SizeBytes: 1,
+			Size: 1,
 		},
 	},
 	{
@@ -63,7 +63,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 138782,
-			SizeBytes: 10000,
+			Size: 10000,
 		},
 	},
 	{
@@ -71,7 +71,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 3,
 			Offset: 1000,
-			SizeBytes: 12341234,
+			Size: 12341234,
 		},
 	},
 }

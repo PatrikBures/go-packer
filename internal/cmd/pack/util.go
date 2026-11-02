@@ -11,9 +11,9 @@ func printPackInfo(packID uint64, pack packer.PackInfo, human bool) {
 
 	var ts string
 	if human {
-		ts = fmt.Sprintf("% 6s", bytesize.FormatIEC(pack.ChunkTotalSize))
+		ts = fmt.Sprintf("% 6s", bytesize.FormatIEC(pack.Size))
 	} else {
-		ts = fmt.Sprintf("% 10d", pack.ChunkTotalSize)
+		ts = fmt.Sprintf("% 10d", pack.Size)
 	}
 
 	fmt.Printf("packID: % 4d, chunks: % 4d, totalSize: %s\n", packID, pack.ChunkCount, ts)

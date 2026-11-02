@@ -10,24 +10,31 @@ import (
 )
 
 type metadataStore struct {
+	dbPath  string
 	db      *bolt.DB
 }
 
-func Init(dbPath string) (*metadataStore, error) {
-	db, err := bolt.Open(dbPath, 0664, &bolt.Options{
+func New(dbPath string) *metadataStore {
+	return &metadataStore{
+		dbPath: dbPath,
+	}
+}
+
+func (ms *metadataStore) Init() error {
+	db, err := bolt.Open(ms.dbPath, 0664, &bolt.Options{
 		Timeout: 1 * time.Second,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := migrateToVersion(db, 0); err != nil {
-		return nil, fmt.Errorf("migrating db to latest version: %w", err)
+		return fmt.Errorf("migrating db to latest version: %w", err)
 	}
 
-	return &metadataStore{
-		db: db,
-	}, nil
+	ms.db = db
+
+	return nil
 }
 
 func (ms *metadataStore) Close() error {
