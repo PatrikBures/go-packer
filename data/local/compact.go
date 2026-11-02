@@ -127,7 +127,7 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 	}
 
 
-	if err = os.MkdirAll(ds.completedPackDir(packID), 0775); err != nil {
+	if err = os.MkdirAll(ds.completedPackDirPath(packID), 0775); err != nil {
 		return packer.CompactInfo{}, err
 	}
 
