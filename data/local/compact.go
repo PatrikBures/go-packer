@@ -133,7 +133,6 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 
 	completedPath := ds.completedPackPath(packID)
 	if err = os.Rename(packPath, completedPath); err != nil {
-		_ = os.Remove(completedPath)
 		return packer.CompactInfo{}, fmt.Errorf("moving pack to completed: %w", err)
 	}
 

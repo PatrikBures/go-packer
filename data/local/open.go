@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
@@ -112,8 +111,7 @@ func (ds *dataStore) movePackCompleted() error {
 		return nil
 	}
 
-	p := ds.completedPackPath(ds.currentPackID)
-	if err := os.MkdirAll(filepath.Dir(p), 0775); err != nil {
+	if err := os.MkdirAll(ds.completedPackDirPath(ds.currentPackID), 0775); err != nil {
 		return fmt.Errorf("creating completed dir: %w", err)
 	}
 
@@ -133,7 +131,7 @@ func (ds *dataStore) movePackCompleted() error {
 		return fmt.Errorf("closing prev pack: %w", err)
 	}
 
-	if err := os.Rename(ds.currentPackLock.Path(), p); err != nil {
+	if err := os.Rename(ds.currentPackLock.Path(), ds.completedPackPath(ds.currentPackID)); err != nil {
 		return fmt.Errorf("renaming prev pack to completed: %w", err)
 	}
 
