@@ -86,7 +86,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 	actions := []FuzzAction{
 		{
 			Name: "Read random chunk",
-			Weight: 200,
+			Weight: 20000,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
 				if err != nil {
@@ -131,7 +131,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 		{
 			Name: "Write random chunk",
-			Weight: 50,
+			Weight: 5000,
 			Run: func() error {
 
 				chunkSize := rng.Uint32N(maxChunkSize - MinMinChunkSize+1) + MinMinChunkSize
@@ -162,7 +162,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 		{
 			Name: "Delete bottom chunks",
-			Weight: 1,
+			Weight: 5,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
 				if err != nil {
@@ -183,7 +183,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 		{
 			Name: "Compact",
-			Weight: 1,
+			Weight: 2,
 			Run: func() error {
 				_, err := p.Compact()
 				return err
