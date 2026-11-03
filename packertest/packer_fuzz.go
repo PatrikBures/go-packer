@@ -69,7 +69,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 
 	for _, p := range packagers {
 		if err := p.Close(); err != nil {
-			t.Fatalf("closing packager: %w", err)
+			t.Fatalf("closing packager: %v", err)
 		}
 	}
 }

@@ -42,35 +42,11 @@ func testPutGet(t *testing.T, p *packer.Packager) {
 	buf := make([]byte, 128)
 
 	dataReceived, err := p.Get(hash[:], buf)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !slices.Equal(data, dataReceived) {
-		t.Fatal("did not receive same data\nwant: %s\nreceived: %s", data, dataReceived)
+		t.Fatalf("did not receive same data\nwant: %s\nreceived: %s", data, dataReceived)
 	}
-}
-
-var testDataChunks = []packer.ChunkInfoWithID{
-	{
-		Id: []byte("hello there"),
-		ChunkInfo: packer.ChunkInfo{
-			PackID: 1,
-			Offset: 2,
-			Size:   1,
-		},
-	},
-	{
-		Id: []byte("hello there asdf"),
-		ChunkInfo: packer.ChunkInfo{
-			PackID: 1,
-			Offset: 138782,
-			Size:   10000,
-		},
-	},
-	{
-		Id: []byte("asdfasdf"),
-		ChunkInfo: packer.ChunkInfo{
-			PackID: 3,
-			Offset: 1000,
-			Size:   12341234,
-		},
-	},
 }

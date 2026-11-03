@@ -75,7 +75,7 @@ func decPack(bucket *addChunkBuckets, packInfo packer.PackInfo, packID uint64, p
 			return fmt.Errorf("adding deleted pack %d to pending: %w", packID, err)
 		}
 	} else if packInfo.ChunkCount == 0 {
-		return fmt.Errorf("Can not decrease ChunkCount below 0. This error should never occur")
+		return fmt.Errorf("can not decrease ChunkCount below 0. This error should never occur")
 	} else {
 		packInfo.ChunkCount--
 

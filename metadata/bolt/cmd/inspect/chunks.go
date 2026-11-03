@@ -62,7 +62,9 @@ func (cmd *ChunksCmd) Run(ctx *Context) error {
 		}
 	}
 
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
 
 	fmt.Printf("found %d chunks\n", len(chunks))
 

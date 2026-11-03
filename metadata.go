@@ -65,7 +65,7 @@ type PackState uint8
 
 const (
 	PackStateActive    PackState = 0
-	PackStateCompleted           = 1
+	PackStateCompleted PackState = 1
 )
 
 const (

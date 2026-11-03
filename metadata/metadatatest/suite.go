@@ -153,7 +153,7 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 	}
 
 	if pi[1].ChunkCount != 1 {
-		t.Fatal("expected chunk count to be 1 for pack 1, received: %d", pi[1].ChunkCount)
+		t.Fatalf("expected chunk count to be 1 for pack 1, received: %d", pi[1].ChunkCount)
 	}
 
 	// marks pack as completed so it can be marked for deletion, as only completed packs can do that.
@@ -168,6 +168,9 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 	}
 
 	newCI, err = ms.Get(chunk.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if newCI != chunk.ChunkInfo {
 		t.Fatalf("want ci: %+v\nreceived: %+v", chunk.ChunkInfo, newCI)
@@ -183,7 +186,7 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 	}
 
 	if pi[2].ChunkCount != 1 {
-		t.Fatal("expected chunk count to be 1 for pack 2, received: %d", pi[2].ChunkCount)
+		t.Fatalf("expected chunk count to be 1 for pack 2, received: %d", pi[2].ChunkCount)
 	}
 }
 

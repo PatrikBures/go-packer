@@ -251,14 +251,11 @@ func (p *Packager) WouldCompact() (map[uint64]PackInfo, error) {
 }
 
 // Deletes packs from dataStore which are not referenced in metadataStore
-func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
-	var packs []uint64
+func (p *Packager) DeleteUnreferencedPacks() (CompactInfo, error) {
 
+	var info CompactInfo
 	for {
-		if len(packs) > 0 {
-			packs = packs[:0]
-		}
-		packs, err = p.metadataStore.PacksDeleteBatch()
+		packs, err := p.metadataStore.PacksDeleteBatch()
 		if err != nil {
 			return CompactInfo{}, err
 		}
@@ -276,5 +273,5 @@ func (p *Packager) DeleteUnreferencedPacks() (info CompactInfo, err error) {
 		info.PacksRemoved += len(packs)
 		info.PackBytesRemoved += bytesRemoved
 	}
-	return
+	return info, nil
 }
