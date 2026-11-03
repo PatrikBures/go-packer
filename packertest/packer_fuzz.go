@@ -24,13 +24,13 @@ type RunRandomActionsConfig struct {
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := tempDir(t)
 
-	fmt.Println("=== Running random actions")
-	fmt.Println("  - Root dir:           ", root)
-	fmt.Println("  - Instances:          ", conf.Instances)
-	fmt.Println("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
-	fmt.Println("  - ActionQty:          ", conf.ActionQty)
-	fmt.Println("  - Seed:               ", conf.Seed)
-	fmt.Println()
+	t.Log("=== Running random actions")
+	t.Log("  - Root dir:           ", root)
+	t.Log("  - Instances:          ", conf.Instances)
+	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
+	t.Log("  - ActionQty:          ", conf.ActionQty)
+	t.Log("  - Seed:               ", conf.Seed)
+	t.Log()
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
@@ -46,8 +46,11 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		packagers = append(packagers, p)
 	}
 	var wg sync.WaitGroup
-	for _, p := range packagers {
-		for range conf.RoutinesPerInstance {
+	for pi, p := range packagers {
+		t.Log("=== Starting packager", pi+1)
+
+		for ri := range conf.RoutinesPerInstance {
+			t.Log("  - Starting routine", ri+1)
 			subSeed := rng.Uint64()
 			wg.Add(1)
 
@@ -69,7 +72,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 
 	for _, p := range packagers {
 		if err := p.Close(); err != nil {
-			t.Fatalf("closing packager: %v", err)
+			t.Errorf("closing packager: %v", err)
 		}
 	}
 }
@@ -191,6 +194,9 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 	}
 
 	for range actionQty {
+		if t.Failed() {
+			return
+		}
 		if err := PickAndRunAction(actions, rng); err != nil {
 			t.Fatal(err)
 		}
