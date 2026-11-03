@@ -15,7 +15,6 @@ func (ds *dataStore) NormalizePackSize(packSize uint64, chunkCount uint32) uint6
 	return packSize + headerLen + (uint64(chunkCount) * prefixLen)
 }
 
-
 func (ds *dataStore) FilterCompactable(packs map[uint64]packer.PackInfo) error {
 	for packID, info := range packs {
 		info.Size = ds.NormalizePackSize(info.Size, info.ChunkCount)
@@ -44,11 +43,11 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 	}
 	size := stat.Size()
 
-	ratio := float64(pack.Size) / float64(size) 
+	ratio := float64(pack.Size) / float64(size)
 	ok := ratio <= ds.compactPackRatio
 	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
 	//        packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
-	return  ok, nil
+	return ok, nil
 }
 
 func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithID) (compactInfo packer.CompactInfo, err error) {
@@ -69,13 +68,14 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 		}
 	}()
 
-
-	f, err := os.OpenFile(packPath, os.O_TRUNC | os.O_WRONLY, 0666)
+	f, err := os.OpenFile(packPath, os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return packer.CompactInfo{}, fmt.Errorf("creating file: %w", err)
 	}
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = f.Close()
 		_ = os.Remove(packPath)
 	}()
@@ -126,7 +126,6 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 		return packer.CompactInfo{}, fmt.Errorf("closing pack file: %w", err)
 	}
 
-
 	if err = os.MkdirAll(ds.completedPackDirPath(packID), 0775); err != nil {
 		return packer.CompactInfo{}, err
 	}
@@ -138,7 +137,6 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 
 	return
 }
-
 
 // Returns remaining chunks and chunks to put into a new pack.
 // If the latter slice is nil, it means there are not enough chunks to make a full pack.

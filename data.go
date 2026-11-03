@@ -51,7 +51,7 @@ type DataStore interface {
 	// Switches current active pack, initializing it. Moves previous pack to completed.
 	SwitchPack(packID uint64) error
 
-	// Switches current active pack to a non-locked existing with at least minSize free pack. Moves previous pack to completed. 
+	// Switches current active pack to a non-locked existing with at least minSize free pack. Moves previous pack to completed.
 	SwitchPackExisting(minSize int64) error
 
 	Close() error
@@ -66,8 +66,8 @@ type CompactInfo struct {
 }
 
 func (ci CompactInfo) String() string {
-	return fmt.Sprintf("SizeDiff: % 5s, removed %d and created %d packs, moved %d chunks", 
-		bytesize.FormatIEC(ci.PackBytesAdded - ci.PackBytesRemoved),
+	return fmt.Sprintf("SizeDiff: % 5s, removed %d and created %d packs, moved %d chunks",
+		bytesize.FormatIEC(ci.PackBytesAdded-ci.PackBytesRemoved),
 		ci.PacksRemoved, ci.PacksCreated,
 		ci.ChunksMoved,
 	)
@@ -75,8 +75,8 @@ func (ci CompactInfo) String() string {
 
 func (c *CompactInfo) Merge(other CompactInfo) {
 	c.PackBytesRemoved += other.PackBytesRemoved
-	c.PackBytesAdded   += other.PackBytesAdded
-	c.PacksRemoved     += other.PacksRemoved
-	c.PacksCreated     += other.PacksCreated
-	c.ChunksMoved      += other.ChunksMoved
+	c.PackBytesAdded += other.PackBytesAdded
+	c.PacksRemoved += other.PacksRemoved
+	c.PacksCreated += other.PacksCreated
+	c.ChunksMoved += other.ChunksMoved
 }

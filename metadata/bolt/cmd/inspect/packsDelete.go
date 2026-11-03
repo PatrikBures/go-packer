@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type PacksDeletedCmd struct {}
+type PacksDeletedCmd struct{}
 
 func (cmd *PacksDeletedCmd) Run(ctx *Context) error {
 	ids, err := ctx.ms.PacksDelete()

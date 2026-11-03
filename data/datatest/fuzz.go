@@ -21,14 +21,14 @@ type trackedChunk struct {
 }
 
 type metadataStore struct {
-	mu            sync.Mutex
+	mu sync.Mutex
 
-	chunks        [chunkCapacity]trackedChunk
-	head          int
-	count         int
+	chunks [chunkCapacity]trackedChunk
+	head   int
+	count  int
 
-	packs         map[uint64]int // stores chunk ref count
-	pendingPacks  map[uint64]int // in-flight read/writes
+	packs        map[uint64]int // stores chunk ref count
+	pendingPacks map[uint64]int // in-flight read/writes
 }
 
 func newMetadataStore() *metadataStore {
@@ -50,12 +50,12 @@ func (ms *metadataStore) Put(hash [32]byte, ci packer.ChunkInfo) {
 			delete(ms.packs, oldest.ci.PackID)
 		}
 	} else {
-		ms.count ++
+		ms.count++
 	}
 
 	ms.chunks[ms.head] = trackedChunk{hash: hash, ci: ci}
 	ms.packs[ci.PackID]++
-	ms.head = (ms.head+1) % chunkCapacity
+	ms.head = (ms.head + 1) % chunkCapacity
 }
 
 func (ms *metadataStore) PutChunkAndAddPending(ds packer.DataStore, chunk []byte) (packer.ChunkInfo, error) {
@@ -68,7 +68,6 @@ func (ms *metadataStore) PutChunkAndAddPending(ds packer.DataStore, chunk []byte
 
 	return ci, nil
 }
-
 
 // get random chunk with its hash, ChunkInfo and a bool which is only false if there are no chunks.
 func (ms *metadataStore) randChunk(rng *rand.Rand) ([32]byte, packer.ChunkInfo, bool) {
@@ -126,9 +125,7 @@ func (ms *metadataStore) RemovePending(packID uint64) {
 	}
 }
 
-
 type StoreFactory func(t *testing.T, dir string, maxPackSize int64) packer.DataStore
-
 
 func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInstance int) {
 
@@ -142,8 +139,8 @@ func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInst
 		cc := rand.NewChaCha8(seedBytes)
 		rng := rand.New(cc)
 
-		maxPackSize  := rng.Int64N(packertest.MaxMaxPackSize - packertest.MinMinPackSize) + packertest.MinMinPackSize
-		maxChunkSize := rng.Uint32N(packertest.MaxMaxChunkSize - packertest.MinMinChunkSize) + packertest.MinMinChunkSize +1
+		maxPackSize := rng.Int64N(packertest.MaxMaxPackSize-packertest.MinMinPackSize) + packertest.MinMinPackSize
+		maxChunkSize := rng.Uint32N(packertest.MaxMaxChunkSize-packertest.MinMinChunkSize) + packertest.MinMinChunkSize + 1
 
 		stores := make([]packer.DataStore, 0, instances)
 		for range instances {
@@ -178,18 +175,17 @@ func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInst
 	})
 }
 
-
 func fuzzDataRandomActions(t *testing.T, ds packer.DataStore, seed uint64, ms *metadataStore, maxChunkSize uint32) {
 	var seedBytes [32]byte
 	binary.LittleEndian.PutUint64(seedBytes[:8], seed)
 	cc := rand.NewChaCha8(seedBytes)
 	rng := rand.New(cc)
 
-	buf := make([]byte, maxChunkSize + 1024)
+	buf := make([]byte, maxChunkSize+1024)
 
 	actions := []packertest.FuzzAction{
 		{
-			Name: "Read random chunk",
+			Name:   "Read random chunk",
 			Weight: 500,
 			Run: func() error {
 				hash, ci, ok := ms.RandChunkAndAddPending(rng)
@@ -211,18 +207,17 @@ func fuzzDataRandomActions(t *testing.T, ds packer.DataStore, seed uint64, ms *m
 			},
 		},
 		{
-			Name: "Write random chunk",
+			Name:   "Write random chunk",
 			Weight: 50,
 			Run: func() error {
 
-				chunkSize := rng.Uint32N(maxChunkSize - packertest.MinMinChunkSize+1) + packertest.MinMinChunkSize
+				chunkSize := rng.Uint32N(maxChunkSize-packertest.MinMinChunkSize+1) + packertest.MinMinChunkSize
 				chunkBytes := buf[:chunkSize]
 
 				if _, err := cc.Read(chunkBytes); err != nil {
 					return fmt.Errorf("reading random bytes into buffer: %w", err)
 				}
 
-				
 				ci, err := ms.PutChunkAndAddPending(ds, chunkBytes)
 				if err != nil {
 					return fmt.Errorf("putting chunk: %w", err)
@@ -254,4 +249,3 @@ func fuzzDataRandomActions(t *testing.T, ds packer.DataStore, seed uint64, ms *m
 		}
 	}
 }
-

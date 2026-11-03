@@ -57,32 +57,29 @@ func TestData(t *testing.T) {
 	}
 }
 
-
-
-
 func TestPutChunk(t *testing.T) {
 	dir := t.TempDir()
 
 	filePath := filepath.Join(dir, "pack.bin")
 
-	f, err := os.OpenFile(filePath, os.O_CREATE | os.O_RDWR | os.O_TRUNC, 0666)
+	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	offset := int64(headerLen)
 
-	testData := []struct{
+	testData := []struct {
 		chunk []byte
-		ci packer.ChunkInfo
-	} {
-		{ chunk: []byte("hello there") },
-		{ chunk: []byte("hello there asdf") },
-		{ chunk: []byte("asdfasdf") },
-		{ chunk: []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") },
-		{ chunk: []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") },
-		{ chunk: []byte("c") },
-		{ chunk: []byte("") },
+		ci    packer.ChunkInfo
+	}{
+		{chunk: []byte("hello there")},
+		{chunk: []byte("hello there asdf")},
+		{chunk: []byte("asdfasdf")},
+		{chunk: []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},
+		{chunk: []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")},
+		{chunk: []byte("c")},
+		{chunk: []byte("")},
 	}
 
 	firstTd := testData[0]

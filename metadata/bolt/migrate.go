@@ -69,9 +69,9 @@ func migrateToVersion(db *bolt.DB, targetVersion uint64) error {
 	return nil
 }
 
-var bucketChunks      = []byte("chunks")
-var bucketVersion     = []byte("version")
-var bucketPacks       = []byte("packs")
+var bucketChunks = []byte("chunks")
+var bucketVersion = []byte("version")
+var bucketPacks = []byte("packs")
 var bucketPacksDelete = []byte("packsDelete")
 
 var keyVersion = []byte("current")

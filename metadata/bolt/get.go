@@ -7,7 +7,6 @@ import (
 	"go.pabu.dev/packer"
 )
 
-
 func (ms *metadataStore) Get(id []byte) (packer.ChunkInfo, error) {
 	var ci packer.ChunkInfo
 

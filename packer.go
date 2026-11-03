@@ -41,7 +41,7 @@ func (p *Packager) Close() error {
 	return errors.Join(p.metadataStore.Close(), p.dataStore.Close())
 }
 
-// Puts a pack with a unique id. Returns early if the id already exists in metadataStore. 
+// Puts a pack with a unique id. Returns early if the id already exists in metadataStore.
 func (p *Packager) Put(id []byte, data []byte) error {
 	if exists, err := p.metadataStore.Exists(id); err != nil {
 		return fmt.Errorf("checking if chunk already exists: %w", err)
@@ -50,7 +50,7 @@ func (p *Packager) Put(id []byte, data []byte) error {
 	}
 
 	if normalizedPackSize := int64(p.dataStore.NormalizePackSize(uint64(len(data)), 1)); p.dataStore.MaxPackSize() < normalizedPackSize {
-		return fmt.Errorf("chunk with size %d exceeds pack capacity by %d bytes", len(data), normalizedPackSize - p.dataStore.MaxPackSize())
+		return fmt.Errorf("chunk with size %d exceeds pack capacity by %d bytes", len(data), normalizedPackSize-p.dataStore.MaxPackSize())
 	}
 
 	for range 3 {
@@ -151,7 +151,6 @@ func (p *Packager) NormalizePacks(packs map[uint64]PackInfo) {
 	}
 }
 
-
 // Gets all packs with their chunks to be relocated to new packs.
 // Should be passed to CompactNext in a loop
 func (p *Packager) CompactablePackChunks() ([]ChunkInfoWithID, error) {
@@ -208,7 +207,6 @@ func (p *Packager) CompactNext(chunks []ChunkInfoWithID) ([]ChunkInfoWithID, Com
 	return chunksRest, compInfo, nil
 }
 
-
 // Compacts all chunks using CompactablePackChunks, CompactNext and DeleteUnreferencedPacks
 func (p *Packager) Compact() (CompactInfo, error) {
 	chunks, err := p.CompactablePackChunks()
@@ -216,15 +214,15 @@ func (p *Packager) Compact() (CompactInfo, error) {
 		return CompactInfo{}, err
 	}
 
-    fmt.Printf("Compact: got %d chunks to compact\n", len(chunks))
+	fmt.Printf("Compact: got %d chunks to compact\n", len(chunks))
 
 	var compInfoAll CompactInfo
-	for i := 0 ; ; i++ {
+	for i := 0; ; i++ {
 		newChunks, compInfo, err := p.CompactNext(chunks)
 		if err != nil {
 			return CompactInfo{}, err
 		}
-        fmt.Printf("Compact loop %d: newChunks=%d PacksCreated=%d\n", i, len(newChunks), compInfo.PacksCreated)
+		fmt.Printf("Compact loop %d: newChunks=%d PacksCreated=%d\n", i, len(newChunks), compInfo.PacksCreated)
 		chunks = newChunks
 		if compInfo.PacksCreated == 0 {
 			break

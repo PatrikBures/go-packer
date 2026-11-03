@@ -33,7 +33,9 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 	}
 
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = lock.Unlock()
 	}()
 
@@ -43,7 +45,9 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 	}
 
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = f.Close()
 	}()
 
@@ -67,7 +71,9 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 // Creates new pack, moves previous pack to completed and updates currentPack* vars
 func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = lock.Unlock()
 	}()
 
@@ -77,7 +83,9 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
 	}
 
 	defer func() {
-		if err == nil { return }
+		if err == nil {
+			return
+		}
 		_ = f.Close()
 	}()
 

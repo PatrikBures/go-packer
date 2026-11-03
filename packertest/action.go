@@ -34,4 +34,3 @@ func PickAndRunAction(actions []FuzzAction, rng *rand.Rand) error {
 
 	panic("did not run any action")
 }
-

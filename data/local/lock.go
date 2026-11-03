@@ -9,7 +9,6 @@ import (
 	"github.com/gofrs/flock"
 )
 
-
 type fileItem struct {
 	name string
 	size int64
@@ -67,7 +66,6 @@ func (ds *dataStore) lockLargestPack(minSize int64) (*flock.Flock, uint64, error
 	if !locked {
 		return nil, 0, nil
 	}
-
 
 	return lock, packID, nil
 }

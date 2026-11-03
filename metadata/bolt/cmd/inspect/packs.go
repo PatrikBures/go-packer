@@ -9,9 +9,8 @@ import (
 	"go.pabu.dev/packer"
 )
 
-
 type PacksCmd struct {
-	Human   bool     `name:"human" short:"H" help:"Human readable sizes"`
+	Human bool `name:"human" short:"H" help:"Human readable sizes"`
 }
 
 func (cmd *PacksCmd) Run(ctx *Context) error {
@@ -29,7 +28,7 @@ func (cmd *PacksCmd) Run(ctx *Context) error {
 	packsSlice := make([]packer.PackInfoWithID, 0, len(packs))
 	for id, info := range packs {
 		packsSlice = append(packsSlice, packer.PackInfoWithID{
-			Id: id,
+			Id:       id,
 			PackInfo: info,
 		})
 	}

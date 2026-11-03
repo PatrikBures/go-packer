@@ -10,33 +10,33 @@ import (
 type StoreFactory func(t *testing.T) packer.MetadataStore
 
 func RunSuite(t *testing.T, factory StoreFactory) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		run func(t *testing.T, ms packer.MetadataStore)
-	} {
+		run  func(t *testing.T, ms packer.MetadataStore)
+	}{
 		{
 			name: "PutAndGetSingleChunk",
-			run: testPutAndGetSingleChunk,
+			run:  testPutAndGetSingleChunk,
 		},
 		{
 			name: "PutChunksBatch",
-			run: testPutChunkBatch,
+			run:  testPutChunkBatch,
 		},
 		{
 			name: "GetAllIDs",
-			run: testGetAllIDs,
+			run:  testGetAllIDs,
 		},
 		{
 			name: "Delete",
-			run: testDelete,
+			run:  testDelete,
 		},
 		{
 			name: "UpdateChunk",
-			run: testUpdateChunk,
+			run:  testUpdateChunk,
 		},
 		{
 			name: "PackSizes",
-			run: testPackSizes,
+			run:  testPackSizes,
 		},
 	}
 
@@ -53,7 +53,7 @@ func testPutAndGetSingleChunk(t *testing.T, ms packer.MetadataStore) {
 	testCI := packer.ChunkInfo{
 		PackID: 1,
 		Offset: 1234,
-		Size: 10,
+		Size:   10,
 	}
 
 	if err := ms.Put(testID, testCI); err != nil {
@@ -130,7 +130,7 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			Size: 1,
+			Size:   1,
 		},
 	}
 
@@ -147,7 +147,6 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 		t.Fatalf("want ci: %+v\nreceived: %+v", chunk.ChunkInfo, newCI)
 	}
 
-
 	pi, err := ms.PackInfo([]uint64{1})
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +155,6 @@ func testUpdateChunk(t *testing.T, ms packer.MetadataStore) {
 	if pi[1].ChunkCount != 1 {
 		t.Fatal("expected chunk count to be 1 for pack 1, received: %d", pi[1].ChunkCount)
 	}
-
 
 	// marks pack as completed so it can be marked for deletion, as only completed packs can do that.
 	if err := ms.MarkCompleted(chunk.PackID); err != nil {
@@ -196,7 +194,7 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 			ChunkInfo: packer.ChunkInfo{
 				PackID: 1,
 				Offset: 2,
-				Size: 20,
+				Size:   20,
 			},
 		},
 		{
@@ -204,7 +202,7 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 			ChunkInfo: packer.ChunkInfo{
 				PackID: 1,
 				Offset: 138782,
-				Size: 13,
+				Size:   13,
 			},
 		},
 		{
@@ -212,7 +210,7 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 			ChunkInfo: packer.ChunkInfo{
 				PackID: 1,
 				Offset: 1000,
-				Size: 300,
+				Size:   300,
 			},
 		},
 	}
@@ -236,7 +234,6 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
 	}
 
-
 	// moved one of the chunks to another pack
 
 	chunks[2].PackID = 2
@@ -251,7 +248,7 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 	}
 
 	pack = pi[1]
-	if expectedCount := uint32(len(chunks)-1); pack.ChunkCount != expectedCount {
+	if expectedCount := uint32(len(chunks) - 1); pack.ChunkCount != expectedCount {
 		t.Fatalf("expected there to be %d chunks, received %d", expectedCount, pack.ChunkCount)
 	}
 	if expectedSize := uint64(chunks[0].Size + chunks[1].Size); pack.Size != expectedSize {
@@ -265,7 +262,6 @@ func testPackSizes(t *testing.T, ms packer.MetadataStore) {
 	if expectedSize := uint64(chunks[2].Size); pack.Size != expectedSize {
 		t.Fatalf("expected size to be %d, received %d", expectedSize, pack.Size)
 	}
-
 
 	// deleted chunk
 
@@ -307,7 +303,6 @@ func chunksExist(t *testing.T, ms packer.MetadataStore, ids [][]byte, shouldExis
 	}
 }
 
-
 func verifyReceivedChunks(t *testing.T, ms packer.MetadataStore, ids [][]byte) {
 	for _, td := range testDataChunks {
 		exists := false
@@ -332,15 +327,13 @@ func verifyReceivedChunks(t *testing.T, ms packer.MetadataStore, ids [][]byte) {
 	}
 }
 
-
-
 var testDataChunks = []packer.ChunkInfoWithID{
 	{
 		Id: []byte("hello there"),
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			Size: 1,
+			Size:   1,
 		},
 	},
 	{
@@ -348,7 +341,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 138782,
-			Size: 10000,
+			Size:   10000,
 		},
 	},
 	{
@@ -356,8 +349,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 3,
 			Offset: 1000,
-			Size: 12341234,
+			Size:   12341234,
 		},
 	},
 }
-

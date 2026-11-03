@@ -118,7 +118,6 @@ func (h *header) WriteAtFile(f *os.File) error {
 	return err
 }
 
-
 func (h *header) sliceToStruct(data []byte) error {
 	copy(h.Magic[:], data[ho0Magic:ho1MajorVersion])
 

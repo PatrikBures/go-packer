@@ -7,9 +7,9 @@ import (
 )
 
 type PutCmd struct {
-	Name string `arg:"" name:"name"`
-	Data []byte `arg:"" name:"existingfile" type:"filecontent" help:"File to pack. Use '-' to read stdin"`
-	Count uint  `name:"count" default:"1" help:"Put same chunk multiple times"`
+	Name  string `arg:"" name:"name"`
+	Data  []byte `arg:"" name:"existingfile" type:"filecontent" help:"File to pack. Use '-' to read stdin"`
+	Count uint   `name:"count" default:"1" help:"Put same chunk multiple times"`
 }
 
 func (c *PutCmd) Run(ctx *Context) error {

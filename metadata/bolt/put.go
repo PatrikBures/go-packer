@@ -88,7 +88,6 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 			return fmt.Errorf("invalid chunk info, id: %x, len: %d, want len: %d", id, len(existingChunkBytes), packer.ChunkInfoSize)
 		}
 
-
 		// if same pack
 		existingPackID := binary.LittleEndian.Uint64(existingChunkBytes)
 		if existingPackID == ci.PackID {
@@ -122,7 +121,6 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 		}
 	}
 
-
 	// update pack
 	var packInfo packer.PackInfo
 	if packInfoBytes := bucket.packs.Get(packIDKey[:]); packInfoBytes != nil {
@@ -148,8 +146,6 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 
 	return nil
 }
-
-
 
 func (ms *metadataStore) MarkCompleted(packID uint64) error {
 	return ms.db.Update(func(tx *bolt.Tx) error {

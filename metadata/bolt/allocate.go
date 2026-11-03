@@ -12,7 +12,7 @@ func (ms *metadataStore) AllocatePack() (uint64, error) {
 		}
 		var err error
 		packID, err = bp.NextSequence()
-		
+
 		return err
 	})
 }

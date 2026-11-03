@@ -56,7 +56,7 @@ func setupPackager(dir string) (*packer.Packager, error) {
 	}
 
 	ms := metadata.New(filepath.Join(dir, "metadata.db"))
-	
+
 	if err := ms.Init(); err != nil {
 		return nil, err
 	}

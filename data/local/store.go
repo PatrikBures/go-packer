@@ -17,14 +17,14 @@ type dataStore struct {
 	currentPackOffset int64
 	currentPackID     uint64
 
-	writePackMu       sync.Mutex
+	writePackMu sync.Mutex
 
 	// options
-	compactPackRatio  float64
-	maxPackSize       int64
-	growBuf           bool
+	compactPackRatio float64
+	maxPackSize      int64
+	growBuf          bool
 
-	packRead          packread.PackRead
+	packRead packread.PackRead
 }
 
 const minPackSize = 1024 << 10     // 1MiB
@@ -84,7 +84,7 @@ func (ds *dataStore) Init() error {
 		ds.completedDir(),
 		ds.activeDir(),
 	} {
-		if err := os.MkdirAll(p, 0755); err != nil{
+		if err := os.MkdirAll(p, 0755); err != nil {
 			return fmt.Errorf("creating dir: %w", err)
 		}
 	}
@@ -102,7 +102,6 @@ func (ds *dataStore) Close() error {
 	return ds.currentPackFile.Close()
 }
 
-
 func (ds *dataStore) CurrentPackID() uint64 {
 	return ds.currentPackID
 }
@@ -110,4 +109,3 @@ func (ds *dataStore) CurrentPackID() uint64 {
 func (ds *dataStore) MaxPackSize() int64 {
 	return ds.maxPackSize
 }
-

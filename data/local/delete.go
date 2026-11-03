@@ -34,7 +34,7 @@ func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error)
 			if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
 				continue
 			}
-		}	
+		}
 		if err != nil {
 			return bytesRemoved, fmt.Errorf("removing file pack: %w", err)
 		}

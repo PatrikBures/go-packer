@@ -5,7 +5,6 @@ import (
 )
 
 type MetadataStore interface {
-
 	Init() error
 
 	Close() error
@@ -40,7 +39,7 @@ type MetadataStore interface {
 	ChunksForPacks(packs map[uint64]PackInfo) ([]ChunkInfoWithID, error)
 
 	// Removes packIDs which do not exist, returning the updated slice.
-	FilterExistingPacks(packs []uint64) ([]uint64, error)	
+	FilterExistingPacks(packs []uint64) ([]uint64, error)
 
 	// Returns a batch of packIDs marked for deletion.
 	// A pack should be deleted if there are no chunks in it.
@@ -62,19 +61,17 @@ type MetadataStore interface {
 	MarkCompleted(packID uint64) error
 }
 
-
-
-
 type PackState uint8
+
 const (
-	PackStateActive PackState = 0
-	PackStateCompleted        = 1
+	PackStateActive    PackState = 0
+	PackStateCompleted           = 1
 )
 
 const (
-	PI1Size      = 0
-	PI2Count     = 8
-	PI3State     = 12
+	PI1Size  = 0
+	PI2Count = 8
+	PI3State = 12
 
 	PackInfoSize = 13
 )
@@ -114,13 +111,10 @@ func BytesToPackInfo(b []byte) (PackInfo, error) {
 	}, nil
 }
 
-
-
-
 type ChunkInfo struct {
-	PackID    uint64 // [0:8]
-	Offset    uint64 // [8:16]
-	Size      uint32 // [16:20]
+	PackID uint64 // [0:8]
+	Offset uint64 // [8:16]
+	Size   uint32 // [16:20]
 }
 
 type ChunkInfoWithID struct {
@@ -129,9 +123,9 @@ type ChunkInfoWithID struct {
 }
 
 const (
-	CI1PackID     = 0
-	CI2Offset     = 8
-	CI3Size       = 16
+	CI1PackID = 0
+	CI2Offset = 8
+	CI3Size   = 16
 
 	ChunkInfoSize = 20
 )
@@ -148,8 +142,8 @@ func (ci *ChunkInfo) Bytes() []byte {
 func (ci *ChunkInfo) PutBytes(buf []byte) {
 	_ = buf[ChunkInfoSize-1] // early bound check
 	binary.LittleEndian.PutUint64(buf[CI1PackID:CI2Offset], ci.PackID)
-	binary.LittleEndian.PutUint64(buf[CI2Offset:CI3Size],   ci.Offset)
-	binary.LittleEndian.PutUint32(buf[CI3Size:ChunkInfoSize],        ci.Size)
+	binary.LittleEndian.PutUint64(buf[CI2Offset:CI3Size], ci.Offset)
+	binary.LittleEndian.PutUint32(buf[CI3Size:ChunkInfoSize], ci.Size)
 }
 
 // can return ErrSliceTooSmall
@@ -158,8 +152,8 @@ func BytesToChunkInfo(b []byte) (ChunkInfo, error) {
 		return ChunkInfo{}, ErrSliceTooSmall
 	}
 	return ChunkInfo{
-		PackID:    binary.LittleEndian.Uint64(b[CI1PackID:CI2Offset]),
-		Offset:    binary.LittleEndian.Uint64(b[CI2Offset:CI3Size]),
-		Size:      binary.LittleEndian.Uint32(b[CI3Size:ChunkInfoSize]),
+		PackID: binary.LittleEndian.Uint64(b[CI1PackID:CI2Offset]),
+		Offset: binary.LittleEndian.Uint64(b[CI2Offset:CI3Size]),
+		Size:   binary.LittleEndian.Uint32(b[CI3Size:ChunkInfoSize]),
 	}, nil
 }

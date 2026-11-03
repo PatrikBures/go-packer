@@ -13,7 +13,6 @@ import (
 	"go.pabu.dev/packer"
 )
 
-
 type RunRandomActionsConfig struct {
 	Instances           int
 	RoutinesPerInstance int
@@ -35,8 +34,8 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
-	maxPackSize  := rng.IntN(MaxMaxPackSize - MinMinPackSize) + MinMinPackSize
-	maxChunkSize := rng.Uint32N(MaxMaxChunkSize - MinMinChunkSize) + MinMinChunkSize +1
+	maxPackSize := rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
+	maxChunkSize := rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
 
 	packagers := make([]*packer.Packager, 0, conf.Instances)
 	for i := range conf.Instances {
@@ -81,11 +80,11 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 	cc := rand.NewChaCha8(seedBytes)
 	rng := rand.New(cc)
 
-	buf := make([]byte, maxChunkSize + 1024)
+	buf := make([]byte, maxChunkSize+1024)
 
 	actions := []FuzzAction{
 		{
-			Name: "Read random chunk",
+			Name:   "Read random chunk",
 			Weight: 20000,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
@@ -130,11 +129,11 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 			},
 		},
 		{
-			Name: "Write random chunk",
+			Name:   "Write random chunk",
 			Weight: 5000,
 			Run: func() error {
 
-				chunkSize := rng.Uint32N(maxChunkSize - MinMinChunkSize+1) + MinMinChunkSize
+				chunkSize := rng.Uint32N(maxChunkSize-MinMinChunkSize+1) + MinMinChunkSize
 				chunkBytes := buf[:chunkSize]
 
 				if _, err := cc.Read(chunkBytes); err != nil {
@@ -161,7 +160,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 			},
 		},
 		{
-			Name: "Delete bottom chunks",
+			Name:   "Delete bottom chunks",
 			Weight: 5,
 			Run: func() error {
 				ids, err := p.ChunkIDsAll()
@@ -182,7 +181,7 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 			},
 		},
 		{
-			Name: "Compact",
+			Name:   "Compact",
 			Weight: 2,
 			Run: func() error {
 				_, err := p.Compact()
@@ -190,7 +189,6 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 			},
 		},
 	}
-
 
 	for range actionQty {
 		if err := PickAndRunAction(actions, rng); err != nil {

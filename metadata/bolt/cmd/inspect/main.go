@@ -9,20 +9,19 @@ import (
 	metadata "go.pabu.dev/packer/metadata/bolt"
 )
 
-
 type Context struct {
-	ms     packer.MetadataStore
+	ms packer.MetadataStore
 }
 
 var CLI struct {
 	// flags
-	DbPath      string            `env:"BOLT_DB" type:"path" required:"" help:"Path to bolt metadata db"`
+	DbPath string `env:"BOLT_DB" type:"path" required:"" help:"Path to bolt metadata db"`
 
 	// commands
-	Packs       PacksCmd          `cmd:"" help:"List packs"`
-	PacksDelete PacksDeletedCmd   `cmd:"" help:"List packs marked for deletion"`
+	Packs       PacksCmd        `cmd:"" help:"List packs"`
+	PacksDelete PacksDeletedCmd `cmd:"" help:"List packs marked for deletion"`
 
-	Chunks      ChunksCmd         `cmd:"" help:"List chunks"`
+	Chunks ChunksCmd `cmd:"" help:"List chunks"`
 }
 
 func main() {
@@ -45,7 +44,6 @@ func main() {
 
 	ctx.FatalIfErrorf(err)
 }
-
 
 func newTabs() *tabwriter.Writer {
 	return tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)

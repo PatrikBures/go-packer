@@ -21,7 +21,6 @@ func TestChunkInfoBytes(t *testing.T) {
 	}
 }
 
-
 func TestPackInfoBytes(t *testing.T) {
 	pi := PackInfo{
 		Size:       1928734,

@@ -11,13 +11,13 @@ import (
 type StoreFactory func(t *testing.T) *packer.Packager
 
 func RunSuite(t *testing.T, factory StoreFactory) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		run func(t *testing.T, p *packer.Packager)
-	} {
+		run  func(t *testing.T, p *packer.Packager)
+	}{
 		{
 			name: "PutGet",
-			run: testPutGet,
+			run:  testPutGet,
 		},
 	}
 
@@ -28,7 +28,6 @@ func RunSuite(t *testing.T, factory StoreFactory) {
 		})
 	}
 }
-
 
 func testPutGet(t *testing.T, p *packer.Packager) {
 
@@ -55,7 +54,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 2,
-			Size: 1,
+			Size:   1,
 		},
 	},
 	{
@@ -63,7 +62,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 1,
 			Offset: 138782,
-			Size: 10000,
+			Size:   10000,
 		},
 	},
 	{
@@ -71,8 +70,7 @@ var testDataChunks = []packer.ChunkInfoWithID{
 		ChunkInfo: packer.ChunkInfo{
 			PackID: 3,
 			Offset: 1000,
-			Size: 12341234,
+			Size:   12341234,
 		},
 	},
 }
-

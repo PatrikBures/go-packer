@@ -14,7 +14,7 @@ func (c *GetCmd) Run(ctx *Context) error {
 
 	hash := sha256.Sum256([]byte(c.Name))
 
-	buf := make([]byte, 1024 << 10)
+	buf := make([]byte, 1024<<10)
 	data, err := ctx.packager.Get(hash[:], buf)
 	if err != nil {
 		return err

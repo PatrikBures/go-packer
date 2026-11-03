@@ -17,8 +17,8 @@ func TestFilterExistingPacks(t *testing.T) {
 		2: 1,
 	}
 
-	input := []uint64{0,1,2,3,4,5,6,7,8,9}
-	want := []uint64{0,1,4,6,7,9}
+	input := []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	want := []uint64{0, 1, 4, 6, 7, 9}
 
 	output := ms.FilterExistingPacks(input)
 

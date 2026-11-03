@@ -10,8 +10,8 @@ import (
 )
 
 type metadataStore struct {
-	dbPath  string
-	db      *bolt.DB
+	dbPath string
+	db     *bolt.DB
 }
 
 func New(dbPath string) *metadataStore {

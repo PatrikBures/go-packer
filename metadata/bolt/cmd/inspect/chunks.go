@@ -14,7 +14,6 @@ type ChunksCmd struct {
 	Human   bool     `name:"human" short:"H" help:"Human readable sizes"`
 }
 
-
 func (cmd *ChunksCmd) Run(ctx *Context) error {
 	var chunks []packer.ChunkInfo
 	if cmd.PackIDs != nil {

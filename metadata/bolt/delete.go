@@ -44,7 +44,7 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 			packInfo, err := packer.BytesToPackInfo(packInfoValue)
 			if err != nil {
 				return fmt.Errorf("converting bytes to PackInfo while deleting chunks: %w", err)
-			} 
+			}
 
 			packInfo.Size -= uint64(chunkInfo.Size)
 			if err := decPack(bucket, packInfo, chunkInfo.PackID, packIDKey); err != nil {
@@ -63,7 +63,7 @@ func (ms *metadataStore) Delete(ids [][]byte) error {
 // Decrements pack count by one. Remember to update Size before running this, but not the ChunkCount!
 //
 // ChunkCount is 1 and the pack is Completed -> pack goes to packDelete
-// 
+//
 // ChunkCount larger than 1 -> decreases ChunkCount by one
 func decPack(bucket *addChunkBuckets, packInfo packer.PackInfo, packID uint64, packIDKey [8]byte) error {
 
@@ -124,7 +124,6 @@ func (ms *metadataStore) PacksDeleteBatch() ([]uint64, error) {
 
 	return packIDs, nil
 }
-
 
 func (ms *metadataStore) PacksDelete() ([]uint64, error) {
 	var packIDs []uint64

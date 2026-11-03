@@ -13,7 +13,6 @@ func TestSuite(t *testing.T) {
 	metadatatest.RunSuite(t, initBoltP)
 }
 
-
 func initBoltP(t *testing.T) packer.MetadataStore {
 	tempDir := t.TempDir()
 	dbFile := filepath.Join(tempDir, "bolt.db")
