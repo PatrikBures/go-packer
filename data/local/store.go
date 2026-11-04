@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -20,6 +21,8 @@ type dataStore struct {
 	currentPackID     uint64
 
 	writePackMu sync.Mutex
+
+	packLockCancel context.CancelFunc
 
 	// options
 	compactPackRatio  float64
@@ -123,6 +126,9 @@ func (ds *dataStore) Init() error {
 
 // Returns error for closing write pack
 func (ds *dataStore) Close() error {
+	if ds.packLockCancel != nil {
+		ds.packLockCancel()
+	}
 	ds.packRead.Close()
 	return ds.currentPackFile.Close()
 }

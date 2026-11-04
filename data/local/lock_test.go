@@ -10,6 +10,11 @@ func TestPackLockStaleLocked(t *testing.T) {
 		WithLockStaleDuration(time.Millisecond*30), 
 		WithLockPulseInterval(time.Millisecond*10),
 	)
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	if locked, err := ds.tryLockPack(0); err != nil {
 		t.Fatal(err)
@@ -31,6 +36,11 @@ func TestPackLockStaleUnlocked(t *testing.T) {
 		WithLockStaleDuration(time.Millisecond*30), 
 		WithLockPulseInterval(time.Millisecond*1000),
 	)
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	if locked, err := ds.tryLockPack(0); err != nil {
 		t.Fatal(err)

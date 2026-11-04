@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -73,6 +74,30 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 
 func (ds *dataStore) unlockPack(packID uint64) error {
 	return os.Remove(ds.activePackLockPath(packID))
+}
+
+func (ds *dataStore) startPackPulse(packID uint64) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func(packID uint64, interval time.Duration) {
+		for {
+			p := ds.activePackLockPath(packID)
+			if err := os.Chtimes(p, time.Time{}, time.Now()); err != nil {
+				panic(fmt.Errorf("updating ModTime for pack %d: %w", packID, err))
+			}
+			timeoutCtx, timeoutCancel := context.WithTimeout(ctx, interval)
+
+			select {
+			case <-timeoutCtx.Done():
+				continue
+			case <-ctx.Done():
+				timeoutCancel()
+				return
+			}
+		}
+	}(packID, ds.lockPulseInterval)
+
+	return cancel
 }
 
 type fileItem struct {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"go.pabu.dev/packer"
 )
@@ -16,7 +17,26 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 	if !locked {
 		return fmt.Errorf("pack is already locked")
 	}
-	return ds.createPack(packID)
+
+	if err := ds.createPack(packID); err != nil {
+		return err
+	}
+
+	de, err := os.ReadDir(ds.activeDir())
+	if err != nil {
+		return err
+	}
+
+	for _, d := range de {
+		fmt.Println(filepath.Join(ds.activeDir(), d.Name()))
+	}
+
+	if ds.packLockCancel != nil {
+		ds.packLockCancel()
+	}
+	ds.packLockCancel = ds.startPackPulse(packID)
+
+	return nil
 }
 
 func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
@@ -52,6 +72,11 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 	if err = ds.movePackCompleted(); err != nil {
 		return fmt.Errorf("completing pack: %w", err)
 	}
+
+	if ds.packLockCancel != nil {
+		ds.packLockCancel()
+	}
+	ds.packLockCancel = ds.startPackPulse(packID)
 
 	ds.currentPackID = packID
 	ds.currentPackFile = f
