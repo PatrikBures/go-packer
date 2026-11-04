@@ -1,38 +1,104 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
-
-	"github.com/gofrs/flock"
+	"strings"
+	"time"
 )
+
+
+func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
+	p := ds.activePackLockPath(packID)
+
+	var f *os.File
+
+	for range 2 {
+		f, err = os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_TRUNC|os.O_WRONLY, 0644)
+		if errors.Is(err, os.ErrExist) {
+
+			stat, err := os.Stat(p)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				return false, fmt.Errorf("stating existing lock file: %w", err)
+			}
+
+			if time.Since(stat.ModTime()) < ds.lockStaleDuration {
+				return false, nil
+			}
+
+			fmt.Printf("lock for pack %d is stale, removing it...\n", packID)
+			if err = os.Remove(p); errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				return false, fmt.Errorf("stating existing lock file: %w", err)
+			}
+
+		} else if err != nil {
+			return false, fmt.Errorf("opening lock file: %w", err)
+		}
+		if f != nil {
+			break
+		}
+	}
+
+	if f == nil {
+		return false, nil
+	}
+
+	defer func() {
+		if err == nil { return }
+		_ = os.Remove(p)
+	}()
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "N/A"
+	}
+
+	if _, err = f.WriteString(fmt.Sprintf("host:%q, pid:%d, started:%q\n", hostname, os.Getpid(), time.Now().Format(time.RFC3339))); err != nil {
+		return false, fmt.Errorf("writing info to lock file: %w", err)
+	}
+
+	if err = f.Close(); err != nil {
+		return false, fmt.Errorf("closing lock file after successfull lock: %w", err)
+	}
+
+	return true, nil
+}
+
+func (ds *dataStore) unlockPack(packID uint64) error {
+	return os.Remove(ds.activePackLockPath(packID))
+}
 
 type fileItem struct {
 	name string
 	size int64
 }
 
-// if flock and err are nil, it means that no active pack was locked.
-func (ds *dataStore) lockLargestPack(minSize int64) (*flock.Flock, uint64, error) {
+// if the bool and error are nil, it means that no active pack was locked.
+func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 
 	files, err := sortedFilesLargestDesc(ds.activeDir())
 	if err != nil {
-		return nil, 0, err
+		return false, 0, err
 	}
 
 	if len(files) == 0 {
-		return nil, 0, nil
+		return false, 0, nil
 	}
 
 	var locked bool
-	var lock *flock.Flock
 	var packID uint64
 	for _, f := range files {
 		packID, err = packIdFromPath(f.name)
 		if err != nil {
-			return nil, 0, err
+			return false, 0, err
 		}
 
 		// skips pack that is currently open
@@ -45,29 +111,31 @@ func (ds *dataStore) lockLargestPack(minSize int64) (*flock.Flock, uint64, error
 			continue
 		}
 
-		fp := filepath.Join(ds.activeDir(), f.name)
-
-		lock = flock.New(fp)
-
-		locked, err = lock.TryLock()
+		locked, err = ds.tryLockPack(packID)
 		if err != nil {
-			return nil, 0, fmt.Errorf("trying locking file: %w", err)
+			return false, 0, fmt.Errorf("locking file: %w", err)
 		}
 
-		if locked {
-			break
+		if !locked {
+			continue
 		}
 
-		if err := lock.Close(); err != nil {
-			return nil, 0, fmt.Errorf("closing lock: %w", err)
+		// Double checking that there is room for chunk. The size 
+		// could have changed between the first check and before locking.
+		stat, err := os.Stat(ds.activePackPath(packID))
+		if err != nil {
+			return false, 0, fmt.Errorf("stating pack after locking: %w", err)
+		}
+		if stat.Size()+minSize+prefixLen > ds.maxPackSize {
+			continue
 		}
 	}
 
 	if !locked {
-		return nil, 0, nil
+		return false, 0, nil
 	}
 
-	return lock, packID, nil
+	return true, packID, nil
 }
 
 func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
@@ -77,7 +145,7 @@ func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if d.IsDir() || strings.HasSuffix(path, ".lock") {
 			return nil
 		}
 

@@ -6,7 +6,6 @@ import (
 	"os"
 	"slices"
 
-	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
 )
 
@@ -52,10 +51,7 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 
 func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithID) (compactInfo packer.CompactInfo, err error) {
 
-	packPath := ds.activePackPath(packID)
-
-	lock := flock.New(packPath)
-	locked, err := lock.TryLock()
+	locked, err := ds.tryLockPack(packID)
 	if err != nil {
 		return packer.CompactInfo{}, fmt.Errorf("locking file: %w", err)
 	}
@@ -63,12 +59,14 @@ func (ds *dataStore) CompactToPack(packID uint64, chunks []packer.ChunkInfoWithI
 		return packer.CompactInfo{}, fmt.Errorf("did not get lock: %s", ds.activePackPath(packID))
 	}
 	defer func() {
-		if lerr := lock.Unlock(); lerr != nil {
+		if lerr := ds.unlockPack(packID); lerr != nil {
 			err = errors.Join(err, fmt.Errorf("unlocking pack: %w", lerr))
 		}
 	}()
 
-	f, err := os.OpenFile(packPath, os.O_TRUNC|os.O_WRONLY, 0666)
+	packPath := ds.activePackPath(packID)
+
+	f, err := os.OpenFile(packPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return packer.CompactInfo{}, fmt.Errorf("creating file: %w", err)
 	}

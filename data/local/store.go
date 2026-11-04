@@ -4,33 +4,37 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
-	"github.com/gofrs/flock"
 	"go.pabu.dev/packer/data/local/internal/packread"
 )
+
+const minPackSize = 1024 << 10 // 1MiB
+const prefixLen = 4
 
 type dataStore struct {
 	packDir string
 
 	currentPackFile   *os.File
-	currentPackLock   *flock.Flock
 	currentPackOffset int64
 	currentPackID     uint64
 
 	writePackMu sync.Mutex
 
 	// options
-	compactPackRatio float64
-	maxPackSize      int64
-	growBuf          bool
+	compactPackRatio  float64
+	maxPackSize       int64
+	growBuf           bool
+
+	// how old the ModTime needs to be for a lock to consider it stale and available.
+	lockStaleDuration time.Duration 
+
+	// how often the lock ModTime should update.
+	lockPulseInterval time.Duration
 
 	packRead packread.PackRead
 }
 
-const minPackSize = 1024 << 10     // 1MiB
-const defaultPackSize = 1024 << 16 // 64MiB
-
-const prefixLen = 4
 
 type Option func(ds *dataStore)
 
@@ -43,9 +47,7 @@ func WithMaxPackSize(bytes int64) Option {
 }
 
 // Ratio of existing chunks in a pack compared with the total size of the pack.
-//
 // Ratio is clamped between 0 and 1.
-//
 // Default is 0.25
 func WithCompactPackThreshold(ratio float64) Option {
 	return func(ds *dataStore) {
@@ -53,12 +55,32 @@ func WithCompactPackThreshold(ratio float64) Option {
 	}
 }
 
-// instead of returning and error when getting a chunk
+// Instead of returning and error when getting a chunk
 // if the chunk won't fit in the buf, grow the buf.
-// it should mainly be used if the size limit of chunks is not known.
+// It should mainly be used if the size limit of chunks is not known.
+// Default is false
 func WithGrowBuf(b bool) Option {
 	return func(ds *dataStore) {
 		ds.growBuf = b
+	}
+}
+
+// The duration it takes for a pack to be considered stale and
+// available to be continued.
+// Default is 10min
+func WithLockStaleDuration(dur time.Duration) Option {
+	return func(ds *dataStore) {
+		ds.lockStaleDuration = dur
+	}
+}
+
+
+// The interval on how often it updates the ModTime for a pack
+// so it does not become considered stale.
+// Default is 30sec
+func WithLockPulseInterval(dur time.Duration) Option {
+	return func(ds *dataStore) {
+		ds.lockPulseInterval = dur
 	}
 }
 
@@ -66,10 +88,13 @@ func WithGrowBuf(b bool) Option {
 func New(packDir string, opts ...Option) *dataStore {
 
 	ds := dataStore{
-		packDir:          packDir,
-		packRead:         packread.New(),
-		maxPackSize:      defaultPackSize,
-		compactPackRatio: 0.25,
+		packDir:           packDir,
+		packRead:          packread.New(),
+		maxPackSize:       1024 << 16, // 64MiB
+		growBuf:           false,
+		lockStaleDuration: time.Minute*10,
+		lockPulseInterval: time.Second*30,
+		compactPackRatio:  0.25,
 	}
 
 	for _, opt := range opts {

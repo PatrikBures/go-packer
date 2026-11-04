@@ -32,6 +32,10 @@ func (ds *dataStore) activePackPath(packID uint64) string {
 	return filepath.Join(ds.packDir, dirNameActive, packName(packID))
 }
 
+func (ds *dataStore) activePackLockPath(packID uint64) string {
+	return ds.activePackPath(packID) + ".lock"
+}
+
 func (ds *dataStore) completedDir() string {
 	return filepath.Join(ds.packDir, dirNameCompleted)
 }
