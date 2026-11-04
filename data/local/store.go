@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ func WithMaxPackSize(bytes int64) Option {
 // Default is 0.25
 func WithCompactPackThreshold(ratio float64) Option {
 	return func(ds *dataStore) {
-		ds.compactPackRatio = max(min(ratio, 1), 0)
+		ds.compactPackRatio = min(max(ratio, 0), 1)
 	}
 }
 
@@ -70,24 +71,27 @@ func WithGrowBuf(b bool) Option {
 
 // The duration it takes for a pack to be considered stale and
 // available to be continued.
+// Clamped to min 10sec.
 // Default is 10min
 func WithLockStaleDuration(dur time.Duration) Option {
 	return func(ds *dataStore) {
-		ds.lockStaleDuration = dur
+		ds.lockStaleDuration = min(dur, time.Second*10)
 	}
 }
 
 
 // The interval on how often it updates the ModTime for a pack
 // so it does not become considered stale.
+// Clamped to min 1sec.
 // Default is 30sec
 func WithLockPulseInterval(dur time.Duration) Option {
 	return func(ds *dataStore) {
-		ds.lockPulseInterval = dur
+		ds.lockPulseInterval = min(dur, time.Second)
 	}
 }
 
-// Returns the dataStore object
+// Returns the dataStore object.
+// Panics if LockPulseInterval is NOT twice as big as LockStaleDuration.
 func New(packDir string, opts ...Option) *dataStore {
 
 	ds := dataStore{
@@ -102,6 +106,14 @@ func New(packDir string, opts ...Option) *dataStore {
 
 	for _, opt := range opts {
 		opt(&ds)
+	}
+
+	if ds.lockPulseInterval*2 > ds.lockStaleDuration {
+		panic(fmt.Errorf("LockPulseInterval needs to be at least twice as big as LockStaleDuration"))
+	}
+
+	if math.IsInf(ds.compactPackRatio, 0) || math.IsNaN(ds.compactPackRatio) {
+		panic(fmt.Errorf("CompactPackRatio is either Inf or NaN"))
 	}
 
 	return &ds

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"go.pabu.dev/packer"
 )
@@ -20,15 +19,6 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 
 	if err := ds.createPack(packID); err != nil {
 		return err
-	}
-
-	de, err := os.ReadDir(ds.activeDir())
-	if err != nil {
-		return err
-	}
-
-	for _, d := range de {
-		fmt.Println(filepath.Join(ds.activeDir(), d.Name()))
 	}
 
 	if ds.packPulse != nil {
