@@ -2,6 +2,7 @@ package data
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,12 +10,11 @@ import (
 	"go.pabu.dev/packer"
 )
 
-func newDS(t *testing.T) *dataStore {
+func newDS(t *testing.T, opts ...Option) *dataStore {
 	tempDir := t.TempDir()
-	ds := New(tempDir)
-	err := ds.Init()
-	if err != nil {
-		t.Fatal(err)
+	ds := New(tempDir, opts...)
+	if err := ds.Init(); !errors.Is(err, packer.ErrNewPack) {
+		t.Fatalf("expected error '%v', received '%v'", packer.ErrNewPack, err)
 	}
 	if err := ds.SwitchPack(0); err != nil {
 		t.Fatal(err)

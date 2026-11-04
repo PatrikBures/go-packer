@@ -32,7 +32,6 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 				return false, nil
 			}
 
-			fmt.Printf("lock for pack %d is stale, removing it...\n", packID)
 			if err = os.Remove(p); errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {
