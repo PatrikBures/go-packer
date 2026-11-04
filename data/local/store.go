@@ -1,13 +1,13 @@
 package data
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
 	"go.pabu.dev/packer/data/local/internal/packread"
+	"go.pabu.dev/packer/data/local/internal/pulser"
 )
 
 const minPackSize = 1024 << 10 // 1MiB
@@ -22,7 +22,7 @@ type dataStore struct {
 
 	writePackMu sync.Mutex
 
-	packLockCancel context.CancelFunc
+	packPulse *pulser.Pulse
 
 	// options
 	compactPackRatio  float64
@@ -126,8 +126,8 @@ func (ds *dataStore) Init() error {
 
 // Returns error for closing write pack
 func (ds *dataStore) Close() error {
-	if ds.packLockCancel != nil {
-		ds.packLockCancel()
+	if ds.packPulse != nil {
+		ds.packPulse.Close()
 	}
 	ds.packRead.Close()
 	return ds.currentPackFile.Close()

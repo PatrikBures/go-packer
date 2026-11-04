@@ -31,10 +31,10 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 		fmt.Println(filepath.Join(ds.activeDir(), d.Name()))
 	}
 
-	if ds.packLockCancel != nil {
-		ds.packLockCancel()
+	if ds.packPulse != nil {
+		ds.packPulse.Close()
 	}
-	ds.packLockCancel = ds.startPackPulse(packID)
+	ds.packPulse = ds.startPackPulse(packID)
 
 	return nil
 }
@@ -73,10 +73,10 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 		return fmt.Errorf("completing pack: %w", err)
 	}
 
-	if ds.packLockCancel != nil {
-		ds.packLockCancel()
+	if ds.packPulse != nil {
+		ds.packPulse.Close()
 	}
-	ds.packLockCancel = ds.startPackPulse(packID)
+	ds.packPulse = ds.startPackPulse(packID)
 
 	ds.currentPackID = packID
 	ds.currentPackFile = f
