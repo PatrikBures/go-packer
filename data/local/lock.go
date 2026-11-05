@@ -146,17 +146,26 @@ func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
 	var files []fileItem
 
+	locks := make(map[string]struct{})
+
 	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || strings.HasSuffix(path, ".lock") {
+		if d.IsDir() {
 			return nil
 		}
 
 		info, err := d.Info()
-		if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else if err != nil {
 			return err
+		}
+
+		if strings.HasSuffix(info.Name(), ".lock") {
+			locks[strings.TrimSuffix(info.Name(), ".lock")] = struct{}{}
+			return nil
 		}
 
 		files = append(files, fileItem{
@@ -168,6 +177,17 @@ func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("walking dir: %w", err)
 	}
+
+
+	// filters out locked files
+	n := 0
+	for _, f := range files {
+		if _, ok := locks[f.name]; ok {
+			files[n] = f
+			n++
+		}
+	}
+	files = files[:n]
 
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].size > files[j].size
