@@ -44,8 +44,6 @@ func (ds *dataStore) shouldCompact(packID uint64, pack packer.PackInfo) (bool, e
 
 	ratio := float64(pack.Size) / float64(size)
 	ok := ratio <= ds.compactPackRatio
-	// fmt.Printf("shouldCompact: pack=%d\tlive=%d\tphysical=%d\tratio=%.3f limit=%.3f -> %v\n",
-	//        packID, pack.Size, size, ratio, ds.compactPackRatio, ok)
 	return ok, nil
 }
 
@@ -163,11 +161,9 @@ func (ds *dataStore) FillNewPack(chunks []packer.ChunkInfoWithID) ([]packer.Chun
 		newChunks = append(newChunks, ci)
 		offset += size64 + prefixLen
 	}
-	fmt.Printf("fillNewPack:  len chunks=%d, len newChunks=%d\n", len(chunks), len(newChunks))
 
 	if !newChunksFilled {
 		if len(packIDs) < 5 {
-			fmt.Printf("!fillNewPack: offset=%d, maxPackSize=%d\n", offset, ds.maxPackSize)
 			return chunks, nil
 		}
 		// no remaining chunks

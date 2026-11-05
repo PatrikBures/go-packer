@@ -15,9 +15,9 @@ type DataStore interface {
 
 	MaxPackSize() int64
 
-	// will only put the amount in Size from ChunkInfo
-	//
-	// returns the offset excluding the headersize but not the size prefix for each chunk
+	// Will only put the amount in Size from ChunkInfo.
+	// returns the offset excluding the headersize but not the size prefix for each chunk.
+	// Returns ErrNewPack if a new pack is needed, rerun after switching pack.
 	Put(data []byte) (ChunkInfo, error)
 	Get(ChunkInfo, []byte) ([]byte, error)
 
@@ -66,7 +66,9 @@ type CompactInfo struct {
 }
 
 func (ci CompactInfo) String() string {
-	return fmt.Sprintf("SizeDiff: % 5s, removed %d and created %d packs, moved %d chunks",
+	return fmt.Sprintf("added=%s, removed=%s, diff=%s, packsRemoved=%d, packsCreated=%d, chunksMoved=%d",
+		bytesize.FormatIEC(ci.PackBytesAdded),
+		bytesize.FormatIEC(ci.PackBytesRemoved),
 		bytesize.FormatIEC(ci.PackBytesAdded-ci.PackBytesRemoved),
 		ci.PacksRemoved, ci.PacksCreated,
 		ci.ChunksMoved,

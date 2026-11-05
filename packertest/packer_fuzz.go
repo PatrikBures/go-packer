@@ -44,11 +44,11 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	if argSeed != 0 { conf.Seed = argSeed }
 
 	t.Log("=== Running random actions")
-	t.Log("--- Root dir:           ", root)
-	t.Log("--- Instances:          ", conf.Instances)
-	t.Log("--- RoutinesPerInstance:", conf.RoutinesPerInstance)
-	t.Log("--- Duration:           ", conf.Duration.String())
-	t.Log("--- Seed:               ", conf.Seed)
+	t.Log("  - Root dir:           ", root)
+	t.Log("  - Instances:          ", conf.Instances)
+	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
+	t.Log("  - Duration:           ", conf.Duration.String())
+	t.Log("  - Seed:               ", conf.Seed)
 	t.Log()
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
@@ -64,28 +64,69 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		}
 		packagers = append(packagers, p)
 	}
+
+	deadline := time.Now().Add(conf.Duration)
+
 	var wg sync.WaitGroup
 	for pi, p := range packagers {
 		t.Log("=== Starting packager", pi+1)
 
 		for ri := range conf.RoutinesPerInstance {
-			t.Log("--- Starting routine", ri+1)
+			t.Log("  - Starting routine", ri+1)
 			subSeed := rng.Uint64()
-			wg.Add(1)
 
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				defer func() {
 					if r := recover(); r != nil {
 						t.Errorf("goroutine panicked: %v", r)
 					}
 				}()
 
-				RunRoutineActions(t, subSeed, p, maxChunkSize, time.Now().Add(conf.Duration))
-			}()
+				RunRoutineActions(t, subSeed, p, maxChunkSize, deadline)
+			})
 		}
 	}
+
+	t.Log("=== Starting compactor")
+	wg.Go(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("goroutine panicked: %v", r)
+			}
+		}()
+
+		p := packagers[0]
+
+		for {
+			for range 10 {
+				time.Sleep(time.Second)
+				if t.Failed() || time.Now().Compare(deadline) > 0 {
+					t.Log("--- Canceling compactor")
+					return
+				}
+			}
+
+			info, err := p.Compact()
+			if err != nil {
+				t.Fatalf("compacting: %v", err)
+			}
+			t.Logf("Compacted: %s", info)
+		}
+	})
+
+	wg.Go(func() {
+		for {
+			for range 60 {
+				time.Sleep(time.Second)
+				if t.Failed() || time.Now().Compare(deadline) > 0 {
+					t.Log("--- Canceling remaining time logger")
+					return
+				}
+			}
+			t.Logf("--- Remaining time: %s", deadline.Sub(time.Now()).Round(time.Second))
+		}
+	})
+
 
 	wg.Wait()
 
@@ -202,21 +243,10 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 				return p.Delete(deleteIds)
 			},
 		},
-		{
-			Name:   "Compact",
-			Weight: 2,
-			Run: func() error {
-				_, err := p.Compact()
-				return err
-			},
-		},
 	}
 
 	for {
-		if t.Failed() {
-			return
-		}
-		if time.Now().Compare(deadline) > 0 {
+		if t.Failed() || time.Now().Compare(deadline) > 0 {
 			return
 		}
 		if err := PickAndRunAction(actions, rng); err != nil {
