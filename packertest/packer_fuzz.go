@@ -6,13 +6,16 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io/fs"
 	"math/rand/v2"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"go.pabu.dev/bytesize"
 	"go.pabu.dev/packer"
 )
 
@@ -65,8 +68,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	maxPackSize := rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
 	maxChunkSize := rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
 
-	packagers := make([]*packer.Packager, 0, conf.Instances)
-
+	packagers := make([]*packer.Packager, 0, totalInstances)
 	for i := range totalInstances {
 		p, err := conf.InitPackager(root, maxPackSize)
 		if err != nil {
@@ -106,27 +108,62 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		}
 
 		for {
+			exit := false
+
 			select {
 			case <-ctx.Done():
-				return
+				exit = true
 			case <-ticker.C:
-				info, err := p.Compact()
-				if err != nil {
-					t.Errorf("compacting: %v", err)
-					cancel()
-					return
-				}
-				t.Logf("compacted: %s", info)
 			}
+			info, err := p.Compact()
+			if err != nil {
+				t.Errorf("compacting: %v", err)
+				cancel()
+				return
+			}
+			t.Logf("compacted: %s", info)
+
+			if exit {
+				return
+			}
+
 		}
 	})
 
 	wg.Wait()
 
-	for _, p := range packagers {
-		if err := p.Close(); err != nil {
-			t.Errorf("closing packager: %v", err)
+	defer func() {
+		for _, p := range packagers {
+			if err := p.Close(); err != nil {
+				t.Errorf("closing packager: %v", err)
+			}
 		}
+	}()
+
+	var physicalBytes int64
+	for _, dir := range []string{"active", "completed"} {
+		filepath.Walk(filepath.Join(root, dir), func(path string, info fs.FileInfo, err error) error {
+			if err != nil { return err }
+			if info.IsDir() || !strings.HasSuffix(path, ".bin") { return nil }
+			physicalBytes += info.Size()
+			return nil
+		})
+	}
+
+	var liveBytes uint64
+	info, err := packagers[0].PackInfoAll()
+	if err != nil {
+		t.Fatalf("reading pack info: %v", err)
+	}
+	for _, pi := range info {
+		liveBytes += pi.Size
+	}
+
+	ratio := float64(liveBytes) / float64(physicalBytes)
+
+	t.Logf("live=%s, physical=%s, ratio=%.3f", bytesize.FormatIEC(liveBytes), bytesize.FormatIEC(physicalBytes), ratio)
+	if ratio < 0.3 {
+		t.Errorf("compaction ineffective: live/physical ratio=%.3f < 0.3", ratio)
 	}
 }
 

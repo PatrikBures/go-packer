@@ -124,7 +124,7 @@ func (p *Packager) ChunkIDsAll() ([][]byte, error) {
 	return p.metadataStore.ChunkIDsAll()
 }
 
-// Get PackInfo for packs
+// Get PackInfo for packs. Normalizes pack sizes.
 func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
 	packs, err := p.metadataStore.PackInfo(packIDs)
 	if err != nil {
@@ -134,7 +134,7 @@ func (p *Packager) PackInfo(packIDs []uint64) (map[uint64]PackInfo, error) {
 	return packs, nil
 }
 
-// Get PackInfo for all packs
+// Get PackInfo for all packs. Normalizes pack sizes.
 func (p *Packager) PackInfoAll() (map[uint64]PackInfo, error) {
 	packs, err := p.metadataStore.PackInfoAll()
 	if err != nil {
