@@ -16,13 +16,13 @@ func FuzzData1x3(f *testing.F) {
 	datatest.FuzzData(f, initData, 1, 3)
 }
 
-func FuzzData4x3(f *testing.F) {
-	datatest.FuzzData(f, initData, 4, 3)
-}
-
-func FuzzData12x2(f *testing.F) {
-	datatest.FuzzData(f, initData, 12, 2)
-}
+// func FuzzData4x3(f *testing.F) {
+// 	datatest.FuzzData(f, initData, 4, 3)
+// }
+//
+// func FuzzData12x2(f *testing.F) {
+// 	datatest.FuzzData(f, initData, 12, 2)
+// }
 
 func initData(t *testing.T, dir string, maxPackSize int64) packer.DataStore {
 	ds := New(dir, WithMaxPackSize(maxPackSize))

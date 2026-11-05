@@ -5,38 +5,43 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gofrs/flock"
 	"go.pabu.dev/packer"
 )
 
 func (ds *dataStore) SwitchPack(packID uint64) error {
-	lock := flock.New(ds.activePackPath(packID))
-	locked, err := lock.TryLock()
+	locked, err := ds.tryLockPack(packID)
 	if err != nil {
 		return fmt.Errorf("locking pack: %w", err)
 	}
 	if !locked {
-		_ = lock.Close()
 		return fmt.Errorf("pack is already locked")
 	}
-	return ds.createPack(packID, lock)
+
+	if err := ds.createPack(packID); err != nil {
+		return err
+	}
+
+	if ds.packPulse != nil {
+		ds.packPulse.Close()
+	}
+	ds.packPulse = ds.startPackPulse(packID)
+
+	return nil
 }
 
 func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 
-	lock, packID, err := ds.lockLargestPack(minSize)
+	locked, packID, err := ds.lockLargestPack(minSize)
 	if err != nil {
 		return fmt.Errorf("locking largest pack: %w", err)
 	}
-	if lock == nil {
+	if !locked {
 		return packer.ErrNewPack
 	}
 
 	defer func() {
-		if err == nil {
-			return
-		}
-		_ = lock.Unlock()
+		if err == nil { return }
+		_ = ds.unlockPack(packID)
 	}()
 
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_RDWR, 0664)
@@ -45,9 +50,7 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 	}
 
 	defer func() {
-		if err == nil {
-			return
-		}
+		if err == nil { return }
 		_ = f.Close()
 	}()
 
@@ -60,8 +63,12 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 		return fmt.Errorf("completing pack: %w", err)
 	}
 
+	if ds.packPulse != nil {
+		ds.packPulse.Close()
+	}
+	ds.packPulse = ds.startPackPulse(packID)
+
 	ds.currentPackID = packID
-	ds.currentPackLock = lock
 	ds.currentPackFile = f
 	ds.currentPackOffset = stat.Size()
 
@@ -69,12 +76,10 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 }
 
 // Creates new pack, moves previous pack to completed and updates currentPack* vars
-func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
+func (ds *dataStore) createPack(packID uint64) (err error) {
 	defer func() {
-		if err == nil {
-			return
-		}
-		_ = lock.Unlock()
+		if err == nil { return }
+		_ = ds.unlockPack(packID)
 	}()
 
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_CREATE|os.O_RDWR, 0664)
@@ -106,7 +111,6 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
 	}
 
 	ds.currentPackID = packID
-	ds.currentPackLock = lock
 	ds.currentPackFile = f
 	ds.currentPackOffset = size
 
@@ -115,7 +119,7 @@ func (ds *dataStore) createPack(packID uint64, lock *flock.Flock) (err error) {
 
 // moves current pack to completed, closes, unlocks it and updates header state.
 func (ds *dataStore) movePackCompleted() error {
-	if ds.currentPackLock == nil {
+	if ds.currentPackFile == nil {
 		return nil
 	}
 
@@ -139,11 +143,11 @@ func (ds *dataStore) movePackCompleted() error {
 		return fmt.Errorf("closing prev pack: %w", err)
 	}
 
-	if err := os.Rename(ds.currentPackLock.Path(), ds.completedPackPath(ds.currentPackID)); err != nil {
+	if err := os.Rename(ds.activePackPath(ds.currentPackID), ds.completedPackPath(ds.currentPackID)); err != nil {
 		return fmt.Errorf("renaming prev pack to completed: %w", err)
 	}
 
-	if err := ds.currentPackLock.Unlock(); err != nil {
+	if err := ds.unlockPack(ds.currentPackID); err != nil {
 		return fmt.Errorf("unlocking prev pack: %w", err)
 	}
 
