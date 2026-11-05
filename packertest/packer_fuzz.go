@@ -24,11 +24,15 @@ var argRoutinesPerInstance int
 var argDuration time.Duration
 var argSeed uint64
 
+var argCompactInterval  time.Duration
+
 func init() {
-	flag.IntVar(&argInstances,           "instances", 0,                "Number of packer instances")
-	flag.IntVar(&argRoutinesPerInstance, "routines",  0,                "Number of routines running on each instance")
-	flag.DurationVar(&argDuration,       "duration",  time.Millisecond, "How long the test should run")
-	flag.Uint64Var(&argSeed,             "seed",      0,                "Seed used to generate random data")
+	flag.IntVar(&argInstances,           "instances",             0,                "Number of packer instances")
+	flag.IntVar(&argRoutinesPerInstance, "routines",              0,                "Number of routines running on each instance")
+	flag.DurationVar(&argDuration,       "duration",              time.Millisecond, "How long the test should run")
+	flag.Uint64Var(&argSeed,             "seed",                  0,                "Seed used to generate random data")
+
+	flag.DurationVar(&argCompactInterval,     "compact-interval", time.Second*10,   "How often a compaction should occur")
 }
 
 type RunRandomActionsConfig struct {
@@ -62,6 +66,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	t.Log("  - Duration:           ", conf.Duration.String())
 	t.Log("  - Seed:               ", conf.Seed)
 	t.Log()
+	t.Log("  - CompactInterval:    ", argCompactInterval.String())
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
@@ -97,7 +102,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 
 	t.Log("=== Starting compactor")
 	wg.Go(func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(argCompactInterval)
 		defer ticker.Stop()
 
 		var p *packer.Packager
@@ -115,13 +120,14 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 				exit = true
 			case <-ticker.C:
 			}
+			start := time.Now()
 			info, err := p.Compact()
 			if err != nil {
 				t.Errorf("compacting: %v", err)
 				cancel()
 				return
 			}
-			t.Logf("compacted: %s", info)
+			t.Logf("compacted in %s: %s", time.Now().Sub(start).Round(time.Microsecond*10), info)
 
 			if exit {
 				return
