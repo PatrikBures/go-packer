@@ -3,6 +3,7 @@ package packertest
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -14,6 +15,18 @@ import (
 	"go.pabu.dev/packer"
 )
 
+var argInstances int
+var argRoutinesPerInstance int
+var argDuration time.Duration
+var argSeed uint64
+
+func init() {
+	flag.IntVar(&argInstances,           "instances", 0,                "Number of packer instances")
+	flag.IntVar(&argRoutinesPerInstance, "routines",  0,                "Number of routines running on each instance")
+	flag.DurationVar(&argDuration,       "duration",  time.Millisecond, "How long the test should run")
+	flag.Uint64Var(&argSeed,             "seed",      0,                "Seed used to generate random data")
+}
+
 type RunRandomActionsConfig struct {
 	Instances           int
 	RoutinesPerInstance int
@@ -24,6 +37,11 @@ type RunRandomActionsConfig struct {
 
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := tempDir(t)
+
+	if argInstances != 0 { conf.Instances = argInstances }
+	if argRoutinesPerInstance != 0 { conf.RoutinesPerInstance = argRoutinesPerInstance }
+	if argDuration >= time.Second { conf.Duration = argDuration }
+	if argSeed != 0 { conf.Seed = argSeed }
 
 	t.Log("=== Running random actions")
 	t.Log("--- Root dir:           ", root)
