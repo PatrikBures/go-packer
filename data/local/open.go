@@ -9,6 +9,9 @@ import (
 )
 
 func (ds *dataStore) SwitchPack(packID uint64) error {
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
+
 	locked, err := ds.tryLockPack(packID)
 	if err != nil {
 		return fmt.Errorf("locking pack: %w", err)
@@ -30,6 +33,8 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 }
 
 func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
 
 	locked, packID, err := ds.lockLargestPack(minSize)
 	if err != nil {
