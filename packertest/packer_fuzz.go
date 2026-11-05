@@ -1,6 +1,7 @@
 package packertest
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"flag"
@@ -43,9 +44,17 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	if argDuration >= time.Second { conf.Duration = argDuration }
 	if argSeed != 0 { conf.Seed = argSeed }
 
+	// extra instance for the compactor, if there will be multiple instances.
+	// otherwise the compactor will share the one and only instance.
+	totalInstances := conf.Instances
+	if totalInstances > 1 {
+		totalInstances++
+	}
+
 	t.Log("=== Running random actions")
 	t.Log("  - Root dir:           ", root)
 	t.Log("  - Instances:          ", conf.Instances)
+	t.Log("  - Instances Total:    ", totalInstances)
 	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
 	t.Log("  - Duration:           ", conf.Duration.String())
 	t.Log("  - Seed:               ", conf.Seed)
@@ -57,7 +66,8 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	maxChunkSize := rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
 
 	packagers := make([]*packer.Packager, 0, conf.Instances)
-	for i := range conf.Instances {
+
+	for i := range totalInstances {
 		p, err := conf.InitPackager(root, maxPackSize)
 		if err != nil {
 			t.Fatalf("initializing packager idx %d: %v", i, err)
@@ -66,9 +76,11 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	}
 
 	deadline := time.Now().Add(conf.Duration)
+	ctx, cancel := context.WithDeadline(t.Context(), deadline)
+	defer cancel()
 
 	var wg sync.WaitGroup
-	for pi, p := range packagers {
+	for pi, p := range packagers[:conf.Instances] {
 		t.Log("=== Starting packager", pi+1)
 
 		for ri := range conf.RoutinesPerInstance {
@@ -76,57 +88,38 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 			subSeed := rng.Uint64()
 
 			wg.Go(func() {
-				defer func() {
-					if r := recover(); r != nil {
-						t.Errorf("goroutine panicked: %v", r)
-					}
-				}()
-
-				RunRoutineActions(t, subSeed, p, maxChunkSize, deadline)
+				RunRoutineActions(t, ctx, cancel, subSeed, p, maxChunkSize)
 			})
 		}
 	}
 
 	t.Log("=== Starting compactor")
 	wg.Go(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Errorf("goroutine panicked: %v", r)
-			}
-		}()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 
-		p := packagers[0]
+		var p *packer.Packager
+		if totalInstances == 1 {
+			p = packagers[0]
+		} else {
+			p = packagers[totalInstances-1]
+		}
 
 		for {
-			for range 10 {
-				time.Sleep(time.Second)
-				if t.Failed() || time.Now().Compare(deadline) > 0 {
-					t.Log("--- Canceling compactor")
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				info, err := p.Compact()
+				if err != nil {
+					t.Errorf("compacting: %v", err)
+					cancel()
 					return
 				}
+				t.Logf("compacted: %s", info)
 			}
-
-			info, err := p.Compact()
-			if err != nil {
-				t.Fatalf("compacting: %v", err)
-			}
-			t.Logf("Compacted: %s", info)
 		}
 	})
-
-	wg.Go(func() {
-		for {
-			for range 60 {
-				time.Sleep(time.Second)
-				if t.Failed() || time.Now().Compare(deadline) > 0 {
-					t.Log("--- Canceling remaining time logger")
-					return
-				}
-			}
-			t.Logf("--- Remaining time: %s", deadline.Sub(time.Now()).Round(time.Second))
-		}
-	})
-
 
 	wg.Wait()
 
@@ -137,7 +130,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	}
 }
 
-func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSize uint32, deadline time.Time) {
+func RunRoutineActions(t *testing.T, ctx context.Context, cancel context.CancelFunc, seed uint64, p *packer.Packager, maxChunkSize uint32) {
 	var seedBytes [32]byte
 	binary.LittleEndian.PutUint64(seedBytes[:8], seed)
 	cc := rand.NewChaCha8(seedBytes)
@@ -245,12 +238,11 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 	}
 
-	for {
-		if t.Failed() || time.Now().Compare(deadline) > 0 {
-			return
-		}
+	for ctx.Err() == nil {
 		if err := PickAndRunAction(actions, rng); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			cancel()
+			return
 		}
 	}
 }
