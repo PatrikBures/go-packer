@@ -3,11 +3,14 @@ package packer
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type Packager struct {
 	metadataStore MetadataStore
 	dataStore     DataStore
+
+	rotateMu sync.Mutex
 }
 
 func New(ms MetadataStore, ds DataStore) *Packager {
@@ -56,42 +59,57 @@ func (p *Packager) Put(id []byte, data []byte) error {
 	for range 3 {
 
 		ci, err := p.dataStore.Put(data)
-
-		// when a new pack is needed, like when the current one is full,
-		// it first checks if there is an existing one it can continue on,
-		// otherwise it allocates a new one.
-		if errors.Is(err, ErrNewPack) {
-			oldPackID := p.dataStore.CurrentPackID()
-
-			if err := p.dataStore.SwitchPackExisting(int64(len(data))); errors.Is(err, ErrNewPack) {
-				newPackID, err := p.metadataStore.AllocatePack()
-				if err != nil {
-					return fmt.Errorf("allocating new pack: %w", err)
-				}
-				if err := p.dataStore.SwitchPack(newPackID); err != nil {
-					return fmt.Errorf("switching pack %d: %w", newPackID, err)
-				}
-			} else if err != nil {
-				return fmt.Errorf("switching pack to an existing one: %w", err)
+		if err == nil {
+			if err := p.metadataStore.Put(id, ci); err != nil {
+				return fmt.Errorf("failed adding chunk to metadata store: %w", err)
 			}
-
-			if err := p.metadataStore.MarkCompleted(oldPackID); err != nil {
-				return fmt.Errorf("marking pack %d as completed: %w", oldPackID, err)
-			}
-
-			continue
-
-		} else if err != nil {
+			return nil
+		}
+		if !errors.Is(err, ErrNewPack) {
 			return fmt.Errorf("failed writing chunk to pack: %w", err)
 		}
 
-		if err := p.metadataStore.Put(id, ci); err != nil {
-			return fmt.Errorf("failed adding chunk to metadata store: %w", err)
+		if err := p.rotatePackLocked(int64(len(data))); err != nil {
+			return fmt.Errorf("rotating to new pack: %w", err)
 		}
-		return nil
 	}
 
 	return fmt.Errorf("put retries exhausted")
+}
+
+func (p *Packager) rotatePackLocked(minSize int64) error {
+
+	startPackID := p.dataStore.CurrentPackID()
+
+	p.rotateMu.Lock()
+	defer p.rotateMu.Unlock()
+
+	oldPackID := p.dataStore.CurrentPackID()
+
+	// if the pack has changed, it probably has room for the chunk
+	if startPackID != oldPackID {
+		return nil
+	}
+
+	// when a new pack is needed, like when the current one is full,
+	// it first checks if there is an existing one it can continue on,
+	// otherwise it allocates a new one.
+	if err := p.dataStore.SwitchPackExisting(minSize); errors.Is(err, ErrNewPack) {
+		newPackID, err := p.metadataStore.AllocatePack()
+		if err != nil {
+			return fmt.Errorf("allocating new pack: %w", err)
+		}
+		if err := p.dataStore.SwitchPack(newPackID); err != nil {
+			return fmt.Errorf("switching pack %d: %w", newPackID, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("switching pack to an existing one: %w", err)
+	}
+
+	if err := p.metadataStore.MarkCompleted(oldPackID); err != nil {
+		return fmt.Errorf("marking pack %d as completed: %w", oldPackID, err)
+	}
+	return nil
 }
 
 // Gets content of chunk.
