@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"go.pabu.dev/packer"
 )
@@ -16,7 +17,7 @@ import (
 type RunRandomActionsConfig struct {
 	Instances           int
 	RoutinesPerInstance int
-	ActionQty           int
+	Duration            time.Duration
 	Seed                uint64
 	InitPackager        func(dir string, maxPackSize int) (*packer.Packager, error)
 }
@@ -25,11 +26,11 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	root := tempDir(t)
 
 	t.Log("=== Running random actions")
-	t.Log("  - Root dir:           ", root)
-	t.Log("  - Instances:          ", conf.Instances)
-	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
-	t.Log("  - ActionQty:          ", conf.ActionQty)
-	t.Log("  - Seed:               ", conf.Seed)
+	t.Log("--- Root dir:           ", root)
+	t.Log("--- Instances:          ", conf.Instances)
+	t.Log("--- RoutinesPerInstance:", conf.RoutinesPerInstance)
+	t.Log("--- Duration:           ", conf.Duration.String())
+	t.Log("--- Seed:               ", conf.Seed)
 	t.Log()
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
@@ -50,7 +51,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		t.Log("=== Starting packager", pi+1)
 
 		for ri := range conf.RoutinesPerInstance {
-			t.Log("  - Starting routine", ri+1)
+			t.Log("--- Starting routine", ri+1)
 			subSeed := rng.Uint64()
 			wg.Add(1)
 
@@ -63,7 +64,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 					}
 				}()
 
-				RunRoutineActions(t, subSeed, p, maxChunkSize, conf.ActionQty)
+				RunRoutineActions(t, subSeed, p, maxChunkSize, time.Now().Add(conf.Duration))
 			}()
 		}
 	}
@@ -77,7 +78,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	}
 }
 
-func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSize uint32, actionQty int) {
+func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSize uint32, deadline time.Time) {
 	var seedBytes [32]byte
 	binary.LittleEndian.PutUint64(seedBytes[:8], seed)
 	cc := rand.NewChaCha8(seedBytes)
@@ -193,8 +194,11 @@ func RunRoutineActions(t *testing.T, seed uint64, p *packer.Packager, maxChunkSi
 		},
 	}
 
-	for range actionQty {
+	for {
 		if t.Failed() {
+			return
+		}
+		if time.Now().Compare(deadline) > 0 {
 			return
 		}
 		if err := PickAndRunAction(actions, rng); err != nil {
