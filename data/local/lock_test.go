@@ -36,7 +36,7 @@ func TestPackLockStaleLocked(t *testing.T) {
 func TestPackLockStaleUnlocked(t *testing.T) {
 	ds := newDS(t,
 		WithLockStaleDuration(time.Millisecond*30), 
-		WithLockPulseInterval(time.Millisecond*1000),
+		WithLockPulseInterval(time.Millisecond*10),
 	)
 	defer func() {
 		if err := ds.Close(); err != nil {
@@ -49,6 +49,8 @@ func TestPackLockStaleUnlocked(t *testing.T) {
 	} else if locked {
 		t.Fatal("expected pack 0 to be locked")
 	}
+
+	ds.packPulse.Close()
 
 	time.Sleep(time.Millisecond*50)
 

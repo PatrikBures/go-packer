@@ -23,7 +23,7 @@ func TestLong_Bolt_Local(t *testing.T) {
 	packertest.RunRandomActions(t, packertest.RunRandomActionsConfig{
 		Instances:           1, // bbolt supports only one read/write instance
 		RoutinesPerInstance: 1,
-		ActionQty:           1000_000_00,
+		Duration:            time.Minute*30,
 		Seed:                seed,
 		InitPackager:        InitBoltAndLocalPackager,
 	})
