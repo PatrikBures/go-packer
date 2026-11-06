@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -25,14 +26,16 @@ var argDuration time.Duration
 var argSeed uint64
 
 var argCompactInterval  time.Duration
+var argTempDir string
 
 func init() {
-	flag.IntVar(&argInstances,           "instances",             0,                "Number of packer instances")
-	flag.IntVar(&argRoutinesPerInstance, "routines",              0,                "Number of routines running on each instance")
-	flag.DurationVar(&argDuration,       "duration",              time.Millisecond, "How long the test should run")
-	flag.Uint64Var(&argSeed,             "seed",                  0,                "Seed used to generate random data")
+	flag.IntVar(&argInstances,            "instances",         0,                "Number of packer instances")
+	flag.IntVar(&argRoutinesPerInstance,  "routines",          0,                "Number of routines running on each instance")
+	flag.DurationVar(&argDuration,        "duration",          time.Millisecond, "How long the test should run")
+	flag.Uint64Var(&argSeed,              "seed",              0,                "Seed used to generate random data")
 
-	flag.DurationVar(&argCompactInterval,     "compact-interval", time.Second*10,   "How often a compaction should occur")
+	flag.DurationVar(&argCompactInterval, "compact-interval",  time.Second*10,   "How often a compaction should occur")
+	flag.StringVar(&argTempDir,           "temp-dir",          "",               "The dir the test should use for the test")
 }
 
 type RunRandomActionsConfig struct {
@@ -44,7 +47,12 @@ type RunRandomActionsConfig struct {
 }
 
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
-	root := tempDir(t)
+	var root string
+	if argTempDir == "" {
+		root = tempDir(t)
+	} else {
+		root = argTempDir
+	}
 
 	if argInstances != 0 { conf.Instances = argInstances }
 	if argRoutinesPerInstance != 0 { conf.RoutinesPerInstance = argRoutinesPerInstance }
@@ -65,7 +73,6 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
 	t.Log("  - Duration:           ", conf.Duration.String())
 	t.Log("  - Seed:               ", conf.Seed)
-	t.Log()
 	t.Log("  - CompactInterval:    ", argCompactInterval.String())
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
@@ -87,11 +94,8 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	for pi, p := range packagers[:conf.Instances] {
-		t.Log("=== Starting packager", pi+1)
-
-		for ri := range conf.RoutinesPerInstance {
-			t.Log("  - Starting routine", ri+1)
+	for _, p := range packagers[:conf.Instances] {
+		for range conf.RoutinesPerInstance {
 			subSeed := rng.Uint64()
 
 			wg.Go(func() {
@@ -118,6 +122,12 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 			select {
 			case <-ctx.Done():
 				exit = true
+
+				// returns without compacting if it canceled, meaning 
+				// something wrong occured so the state is not modified after.
+				if !errors.Is(ctx.Err(), context.DeadlineExceeded){
+					return
+				}
 			case <-ticker.C:
 			}
 			start := time.Now()
