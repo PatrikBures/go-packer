@@ -15,15 +15,15 @@ import (
 
 
 func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
-	p := ds.activePackLockPath(packID)
+	lockPath := ds.activePackLockPath(packID)
 
 	var f *os.File
 
 	for range 2 {
-		f, err = os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_TRUNC|os.O_WRONLY, 0644)
+		f, err = os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_TRUNC|os.O_WRONLY, 0644)
 		if errors.Is(err, os.ErrExist) {
 
-			stat, err := os.Stat(p)
+			stat, err := os.Stat(lockPath)
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {
@@ -34,7 +34,7 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 				return false, nil
 			}
 
-			if err = os.Remove(p); errors.Is(err, os.ErrNotExist) {
+			if err = os.Remove(lockPath); errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {
 				return false, fmt.Errorf("stating existing lock file: %w", err)
@@ -43,18 +43,20 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 		} else if err != nil {
 			return false, fmt.Errorf("opening lock file: %w", err)
 		}
-		if f != nil {
-			break
-		}
+
+		break
 	}
 
+	// did not manage to get lock
 	if f == nil {
 		return false, nil
 	}
 
 	defer func() {
 		if err == nil { return }
-		_ = os.Remove(p)
+		if rerr := os.Remove(lockPath); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("removing lock file: %w", err))
+		}
 	}()
 
 	hostname, err := os.Hostname()
@@ -91,7 +93,7 @@ func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 
 	files, err := sortedFilesLargestDesc(ds.activeDir())
 	if err != nil {
-		return false, 0, err
+		return false, 0, fmt.Errorf("getting files sorted by size: %w", err)
 	}
 
 	if len(files) == 0 {
@@ -128,10 +130,21 @@ func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 		// Double checking that there is room for chunk. The size 
 		// could have changed between the first check and before locking.
 		stat, err := os.Stat(ds.activePackPath(packID))
-		if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if err = ds.unlockPack(packID); err != nil {
+				return false, 0, fmt.Errorf("unlocking after finding out pack file does not exist: %w", err)
+			}
+			continue
+		} else if err != nil {
+			if uerr := ds.unlockPack(packID); err != nil {
+				err = errors.Join(err, fmt.Errorf("unlocking pack: %w", uerr))
+			}
 			return false, 0, fmt.Errorf("stating pack after locking: %w", err)
 		}
 		if stat.Size()+minSize+prefixLen > ds.maxPackSize {
+			if err = ds.unlockPack(packID); err != nil {
+				return false, 0, fmt.Errorf("unlocking after pack not enough room: %w", err)
+			}
 			continue
 		}
 	}
