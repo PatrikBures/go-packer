@@ -33,8 +33,8 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 			if time.Since(stat.ModTime()) < ds.lockStaleDuration {
 				return false, nil
 			}
-
-			if err = os.Remove(lockPath); errors.Is(err, os.ErrNotExist) {
+			// if pack is older than lockStaleDuration, unlock the pack, and try to lock again
+			if err = ds.unlockPack(packID); errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {
 				return false, fmt.Errorf("stating existing lock file: %w", err)
@@ -54,8 +54,8 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 
 	defer func() {
 		if err == nil { return }
-		if rerr := os.Remove(lockPath); rerr != nil {
-			err = errors.Join(err, fmt.Errorf("removing lock file: %w", err))
+		if uerr := ds.unlockPack(packID); uerr != nil {
+			err = errors.Join(err, fmt.Errorf("unlocking pack %d after error: %w", packID, uerr))
 		}
 	}()
 
