@@ -37,7 +37,7 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 			if err = ds.unlockPack(packID); errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {
-				return false, fmt.Errorf("stating existing lock file: %w", err)
+				return false, fmt.Errorf("unlocking old lock: %w", err)
 			}
 
 		} else if err != nil {
