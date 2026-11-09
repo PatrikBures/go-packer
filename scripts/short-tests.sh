@@ -17,7 +17,7 @@ find ./logs -type f -name 'packer-*' | sed 's/packer-//'
 last_num=$(find ./logs -maxdepth 1 -type d -name 'packer-*' -printf '%f\n' | sed 's/packer-//' | sort --numeric-sort --reverse | head -1)
 
 if [[ -z "$last_num" ]]; then
-    last_num=1
+    last_num=0
 fi
 
 number_of_tests=$1
