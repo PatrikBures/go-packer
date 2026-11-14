@@ -33,12 +33,12 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 			if time.Since(stat.ModTime()) < ds.lockStaleDuration {
 				return false, nil
 			}
-			// if pack is older than lockStaleDuration, unlock the pack, and try to lock again
-			if err = ds.unlockPack(packID); errors.Is(err, os.ErrNotExist) {
-				continue
-			} else if err != nil {
+			// if pack is older than lockStaleDuration, unlock the pack, and try to lock again.
+			// if the lock did not exist, try to lock anyway.
+			if err = ds.unlockPack(packID); !errors.Is(err, os.ErrNotExist) {
 				return false, fmt.Errorf("unlocking old lock: %w", err)
 			}
+			continue
 
 		} else if err != nil {
 			return false, fmt.Errorf("opening lock file: %w", err)
