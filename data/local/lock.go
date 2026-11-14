@@ -195,7 +195,7 @@ func sortedFilesLargestDesc(dir string) ([]fileItem, error) {
 	// filters out locked files
 	n := 0
 	for _, f := range files {
-		if _, ok := locks[f.name]; ok {
+		if _, ok := locks[f.name]; !ok {
 			files[n] = f
 			n++
 		}
