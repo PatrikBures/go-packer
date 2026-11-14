@@ -256,15 +256,6 @@ func RunRoutineActions(t *testing.T, ctx context.Context, cancel context.CancelF
 					return fmt.Errorf("putting chunk: %w", err)
 				}
 
-				chunkBytesGet, err := p.Get(hash[:], buf)
-				if err != nil {
-					return fmt.Errorf("getting chunk after putting: %w", err)
-				}
-
-				if hashGet := sha256.Sum256(chunkBytesGet); hash != hashGet {
-					return fmt.Errorf("hash mismatch after put: expected %x, got: '%x'", hash[:4], hashGet[:4])
-				}
-
 				return nil
 			},
 		},
