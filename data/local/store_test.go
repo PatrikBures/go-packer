@@ -10,7 +10,9 @@ import (
 	"go.pabu.dev/packer"
 )
 
-func newDS(t *testing.T, opts ...Option) *dataStore {
+func newDS(t testing.TB, opts ...Option) *dataStore {
+	t.Helper()
+
 	tempDir := t.TempDir()
 	ds := New(tempDir, opts...)
 	if err := ds.Init(); !errors.Is(err, packer.ErrNewPack) {

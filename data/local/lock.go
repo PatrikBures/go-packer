@@ -35,7 +35,7 @@ func (ds *dataStore) tryLockPack(packID uint64) (locked bool, err error) {
 			}
 			// if pack is older than lockStaleDuration, unlock the pack, and try to lock again.
 			// if the lock did not exist, try to lock anyway.
-			if err = ds.unlockPack(packID); !errors.Is(err, os.ErrNotExist) {
+			if err = ds.unlockPack(packID); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return false, fmt.Errorf("unlocking old lock: %w", err)
 			}
 			continue
@@ -88,7 +88,9 @@ type fileItem struct {
 	size int64
 }
 
-// if the bool and error are nil, it means that no active pack was locked.
+// If the bool is false and error is nil == no unlocked fitting pack was found.
+//
+// If the bool is true and error is nil == it has acquired a lock on the returned uint64.
 func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 
 	files, err := sortedFilesLargestDesc(ds.activeDir())
@@ -147,6 +149,7 @@ func (ds *dataStore) lockLargestPack(minSize int64) (bool, uint64, error) {
 			}
 			continue
 		}
+		break
 	}
 
 	if !locked {
