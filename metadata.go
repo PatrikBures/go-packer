@@ -10,6 +10,7 @@ type MetadataStore interface {
 	Close() error
 
 	// Puts or updates a chunk.
+	// Returns ErrNewPack if a new pack is needed, rerun after switching pack.
 	Put(id []byte, ci ChunkInfo) error
 
 	// Puts or updates multiple chunks.

@@ -58,17 +58,23 @@ func (p *Packager) Put(id []byte, data []byte) error {
 
 	for range 3 {
 
+		var merr error
 		ci, err := p.dataStore.Put(data)
 		if err == nil {
-			if err := p.metadataStore.Put(id, ci); err != nil {
-				return fmt.Errorf("failed adding chunk to metadata store: %w", err)
+			if merr = p.metadataStore.Put(id, ci); err != nil {
+				if !errors.Is(merr, ErrNewPack) {
+					return fmt.Errorf("failed adding chunk to metadata store: %w", err)
+				}
+			} else if merr == nil {
+				return nil // only exits if dataStore and metadataStore had no errors
 			}
-			return nil
-		}
-		if !errors.Is(err, ErrNewPack) {
+			fmt.Println("metadata needs new pack!!!")
+		} else if !errors.Is(err, ErrNewPack) {
 			return fmt.Errorf("failed writing chunk to pack: %w", err)
 		}
 
+		// only runs this if at least one of DS or MS returned ErrNewPack
+		// and the one that did not, returned nil.
 		if err := p.rotatePackLocked(int64(len(data))); err != nil {
 			return fmt.Errorf("rotating to new pack: %w", err)
 		}

@@ -17,7 +17,9 @@ func (ms *metadataStore) Put(id []byte, ci packer.ChunkInfo) error {
 		}
 		return addChunk(buckets, id, ci)
 
-	}); err != nil {
+	}); err == packer.ErrNewPack {
+		return packer.ErrNewPack
+	} else if err != nil {
 		return fmt.Errorf("adding chunk: %w", err)
 	}
 
@@ -72,6 +74,8 @@ func openAddChunkBuckets(tx *bolt.Tx) (*addChunkBuckets, error) {
 //
 // it does not open the buckets, as this functions is also used in a loop.
 // if it would open the buckets it would then do it each iteration.
+//
+// can return ErrNewPack, which should be handled by switching to a new pack
 func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 
 	var packIDKey [8]byte
@@ -79,7 +83,7 @@ func addChunk(bucket *addChunkBuckets, id []byte, ci packer.ChunkInfo) error {
 
 	// ensure that pack already is not marked for deletion
 	if bucket.packsDelete.Get(packIDKey[:]) != nil {
-		return fmt.Errorf("attempting to write chunk to pack %d marked for deletion", ci.PackID)
+		return packer.ErrNewPack
 	}
 
 	// if chunk already exists
