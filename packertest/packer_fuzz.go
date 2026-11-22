@@ -25,8 +25,11 @@ var argRoutinesPerInstance int
 var argDuration time.Duration
 var argSeed uint64
 
-var argCompactInterval  time.Duration
+var argCompactInterval time.Duration
 var argTempDir string
+
+var argMaxChunkSize string
+var argMaxPackSize string
 
 func init() {
 	flag.IntVar(&argInstances,            "instances",         0,                "Number of packer instances")
@@ -36,6 +39,9 @@ func init() {
 
 	flag.DurationVar(&argCompactInterval, "compact-interval",  time.Second*10,   "How often a compaction should occur")
 	flag.StringVar(&argTempDir,           "temp-dir",          "",               "The dir the test should use for the test")
+
+	flag.StringVar(&argMaxChunkSize,      "max-chunk-size",    "",               "maximum random chunk size")
+	flag.StringVar(&argMaxPackSize,       "max-pack-size",     "",               "maximum random pack size")
 }
 
 type RunRandomActionsConfig struct {
@@ -66,19 +72,37 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		totalInstances++
 	}
 
-	t.Log("=== Running random actions")
-	t.Log("  - Root dir:           ", root)
-	t.Log("  - Instances:          ", conf.Instances)
-	t.Log("  - Instances Total:    ", totalInstances)
-	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
-	t.Log("  - Duration:           ", conf.Duration.String())
-	t.Log("  - Seed:               ", conf.Seed)
-	t.Log("  - CompactInterval:    ", argCompactInterval.String())
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
-	maxPackSize := rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
-	maxChunkSize := rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
+	var maxChunkSize uint32
+	if argMaxChunkSize != "" {
+		size, err := bytesize.Parse(argMaxChunkSize)
+		if err != nil { t.Fatal(err) }
+		maxChunkSize = uint32(size)
+	} else {
+		maxChunkSize = rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
+	}
+
+	var maxPackSize int
+	if argMaxPackSize != "" {
+		size, err := bytesize.Parse(argMaxPackSize)
+		if err != nil { t.Fatal(err) }
+		maxPackSize = int(size)
+	} else {
+		maxPackSize = rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
+	}
+
+	t.Log("=== Running random actions")
+	fmt.Fprintln(t.Output(), "  - Root dir:           ", root)
+	fmt.Fprintln(t.Output(), "  - Instances:          ", conf.Instances)
+	fmt.Fprintln(t.Output(), "  - Instances Total:    ", totalInstances)
+	fmt.Fprintln(t.Output(), "  - RoutinesPerInstance:", conf.RoutinesPerInstance)
+	fmt.Fprintln(t.Output(), "  - Duration:           ", conf.Duration.String())
+	fmt.Fprintln(t.Output(), "  - Seed:               ", conf.Seed)
+	fmt.Fprintln(t.Output(), "  - CompactInterval:    ", argCompactInterval.String())
+	fmt.Fprintln(t.Output(), "  - MaxChunkSize:       ", bytesize.FormatIEC(maxChunkSize))
+	fmt.Fprintln(t.Output(), "  - MaxPackSize:        ", bytesize.FormatIEC(maxPackSize))
 
 	packagers := make([]*packer.Packager, 0, totalInstances)
 	for i := range totalInstances {
