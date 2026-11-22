@@ -3,15 +3,30 @@ package packer
 import (
 	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
 )
 
 type Packager struct {
 	metadataStore MetadataStore
 	dataStore     DataStore
 
-	rotateMu sync.Mutex
+	rotateLock atomicLock
 }
+
+
+type atomicLock struct {
+	locked atomic.Bool
+}
+
+// returns true if it gained the lock
+func (al *atomicLock) TryLock() bool {
+	return al.locked.CompareAndSwap(false, true)
+}
+
+func (al *atomicLock) Unlock() {
+	al.locked.Store(false)
+}
+
 
 func New(ms MetadataStore, ds DataStore) *Packager {
 	return &Packager{
@@ -87,8 +102,10 @@ func (p *Packager) rotatePackLocked(minSize int64) error {
 
 	startPackID := p.dataStore.CurrentPackID()
 
-	p.rotateMu.Lock()
-	defer p.rotateMu.Unlock()
+	if !p.rotateLock.TryLock() {
+		return false, nil
+	}
+	defer p.rotateLock.Unlock()
 
 	oldPackID := p.dataStore.CurrentPackID()
 
