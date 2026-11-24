@@ -1,9 +1,11 @@
 package packertest
 
 import (
+	"context"
 	"crypto/sha256"
 	"slices"
 	"testing"
+	"time"
 
 	"go.pabu.dev/packer"
 )
@@ -34,7 +36,8 @@ func testPutGet(t *testing.T, p *packer.Packager) {
 	data := []byte("hello there asdf")
 	hash := sha256.Sum256(data)
 
-	err := p.Put(hash[:], data)
+	pctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*100))
+	err := p.Put(pctx, hash[:], data)
 	if err != nil {
 		t.Fatal(err)
 	}

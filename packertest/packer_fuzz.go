@@ -275,7 +275,8 @@ func RunRoutineActions(t *testing.T, ctx context.Context, cancel context.CancelF
 
 				hash := sha256.Sum256(chunkBytes)
 
-				err := p.Put(hash[:], chunkBytes)
+				pctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*2000))
+				err := p.Put(pctx, hash[:], chunkBytes)
 				if err != nil {
 					return fmt.Errorf("putting chunk: %w", err)
 				}

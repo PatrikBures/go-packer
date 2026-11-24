@@ -1,6 +1,7 @@
 package packer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -62,7 +63,7 @@ func (p *Packager) Close() error {
 }
 
 // Puts a pack with a unique id. Returns early if the id already exists in metadataStore.
-func (p *Packager) Put(id []byte, data []byte) error {
+func (p *Packager) Put(ctx context.Context, id []byte, data []byte) error {
 	if exists, err := p.metadataStore.Exists(id); err != nil {
 		return fmt.Errorf("checking if chunk already exists: %w", err)
 	} else if exists {
@@ -74,7 +75,7 @@ func (p *Packager) Put(id []byte, data []byte) error {
 	}
 
 	var attempt int
-	for attempt = range 20 {
+	for attempt = 0 ; ; attempt++{
 
 		startPackID := p.dataStore.CurrentPackID()
 
@@ -107,10 +108,13 @@ func (p *Packager) Put(id []byte, data []byte) error {
 		jitter := rand.IntN(backoff)
 		delay := backoff>>1 + jitter
 
-		time.Sleep(time.Millisecond * time.Duration(delay))
+		select {
+		case <-time.After(time.Millisecond * time.Duration(delay)):
+			continue
+		case <-ctx.Done():
+			return fmt.Errorf("context done on attempt %d", attempt+1)
+		}
 	}
-
-	return fmt.Errorf("put retries exhausted at attempt %d", attempt+1)
 }
 
 func (p *Packager) rotatePackLocked(startPackID uint64, minSize int64) (bool, error) {
