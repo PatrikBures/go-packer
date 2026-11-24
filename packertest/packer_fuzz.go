@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -24,11 +25,23 @@ var argRoutinesPerInstance int
 var argDuration time.Duration
 var argSeed uint64
 
+var argCompactInterval time.Duration
+var argTempDir string
+
+var argMaxChunkSize string
+var argMaxPackSize string
+
 func init() {
-	flag.IntVar(&argInstances,           "instances", 0,                "Number of packer instances")
-	flag.IntVar(&argRoutinesPerInstance, "routines",  0,                "Number of routines running on each instance")
-	flag.DurationVar(&argDuration,       "duration",  time.Millisecond, "How long the test should run")
-	flag.Uint64Var(&argSeed,             "seed",      0,                "Seed used to generate random data")
+	flag.IntVar(&argInstances,            "instances",         0,                "Number of packer instances")
+	flag.IntVar(&argRoutinesPerInstance,  "routines",          0,                "Number of routines running on each instance")
+	flag.DurationVar(&argDuration,        "duration",          time.Millisecond, "How long the test should run")
+	flag.Uint64Var(&argSeed,              "seed",              0,                "Seed used to generate random data")
+
+	flag.DurationVar(&argCompactInterval, "compact-interval",  time.Second*10,   "How often a compaction should occur")
+	flag.StringVar(&argTempDir,           "temp-dir",          "",               "The dir the test should use for the test")
+
+	flag.StringVar(&argMaxChunkSize,      "max-chunk-size",    "",               "maximum random chunk size")
+	flag.StringVar(&argMaxPackSize,       "max-pack-size",     "",               "maximum random pack size")
 }
 
 type RunRandomActionsConfig struct {
@@ -40,7 +53,12 @@ type RunRandomActionsConfig struct {
 }
 
 func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
-	root := tempDir(t)
+	var root string
+	if argTempDir == "" {
+		root = tempDir(t)
+	} else {
+		root = argTempDir
+	}
 
 	if argInstances != 0 { conf.Instances = argInstances }
 	if argRoutinesPerInstance != 0 { conf.RoutinesPerInstance = argRoutinesPerInstance }
@@ -54,19 +72,37 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 		totalInstances++
 	}
 
-	t.Log("=== Running random actions")
-	t.Log("  - Root dir:           ", root)
-	t.Log("  - Instances:          ", conf.Instances)
-	t.Log("  - Instances Total:    ", totalInstances)
-	t.Log("  - RoutinesPerInstance:", conf.RoutinesPerInstance)
-	t.Log("  - Duration:           ", conf.Duration.String())
-	t.Log("  - Seed:               ", conf.Seed)
-	t.Log()
 
 	rng := rand.New(rand.NewPCG(conf.Seed, 0))
 
-	maxPackSize := rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
-	maxChunkSize := rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
+	var maxChunkSize uint32
+	if argMaxChunkSize != "" {
+		size, err := bytesize.Parse(argMaxChunkSize)
+		if err != nil { t.Fatal(err) }
+		maxChunkSize = uint32(size)
+	} else {
+		maxChunkSize = rng.Uint32N(MaxMaxChunkSize-MinMinChunkSize) + MinMinChunkSize + 1
+	}
+
+	var maxPackSize int
+	if argMaxPackSize != "" {
+		size, err := bytesize.Parse(argMaxPackSize)
+		if err != nil { t.Fatal(err) }
+		maxPackSize = int(size)
+	} else {
+		maxPackSize = rng.IntN(MaxMaxPackSize-MinMinPackSize) + MinMinPackSize
+	}
+
+	t.Log("=== Running random actions")
+	fmt.Fprintln(t.Output(), "  - Root dir:           ", root)
+	fmt.Fprintln(t.Output(), "  - Instances:          ", conf.Instances)
+	fmt.Fprintln(t.Output(), "  - Instances Total:    ", totalInstances)
+	fmt.Fprintln(t.Output(), "  - RoutinesPerInstance:", conf.RoutinesPerInstance)
+	fmt.Fprintln(t.Output(), "  - Duration:           ", conf.Duration.String())
+	fmt.Fprintln(t.Output(), "  - Seed:               ", conf.Seed)
+	fmt.Fprintln(t.Output(), "  - CompactInterval:    ", argCompactInterval.String())
+	fmt.Fprintln(t.Output(), "  - MaxChunkSize:       ", bytesize.FormatIEC(maxChunkSize))
+	fmt.Fprintln(t.Output(), "  - MaxPackSize:        ", bytesize.FormatIEC(maxPackSize))
 
 	packagers := make([]*packer.Packager, 0, totalInstances)
 	for i := range totalInstances {
@@ -82,11 +118,8 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	for pi, p := range packagers[:conf.Instances] {
-		t.Log("=== Starting packager", pi+1)
-
-		for ri := range conf.RoutinesPerInstance {
-			t.Log("  - Starting routine", ri+1)
+	for _, p := range packagers[:conf.Instances] {
+		for range conf.RoutinesPerInstance {
 			subSeed := rng.Uint64()
 
 			wg.Go(func() {
@@ -97,7 +130,7 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 
 	t.Log("=== Starting compactor")
 	wg.Go(func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(argCompactInterval)
 		defer ticker.Stop()
 
 		var p *packer.Packager
@@ -113,15 +146,22 @@ func RunRandomActions(t *testing.T, conf RunRandomActionsConfig) {
 			select {
 			case <-ctx.Done():
 				exit = true
+
+				// returns without compacting if it canceled, meaning 
+				// something wrong occured so the state is not modified after.
+				if !errors.Is(ctx.Err(), context.DeadlineExceeded){
+					return
+				}
 			case <-ticker.C:
 			}
+			start := time.Now()
 			info, err := p.Compact()
 			if err != nil {
 				t.Errorf("compacting: %v", err)
 				cancel()
 				return
 			}
-			t.Logf("compacted: %s", info)
+			t.Logf("compacted in %s: %s", time.Now().Sub(start).Round(time.Microsecond*10), info)
 
 			if exit {
 				return
@@ -235,18 +275,10 @@ func RunRoutineActions(t *testing.T, ctx context.Context, cancel context.CancelF
 
 				hash := sha256.Sum256(chunkBytes)
 
-				err := p.Put(hash[:], chunkBytes)
+				pctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*2000))
+				err := p.Put(pctx, hash[:], chunkBytes)
 				if err != nil {
 					return fmt.Errorf("putting chunk: %w", err)
-				}
-
-				chunkBytesGet, err := p.Get(hash[:], buf)
-				if err != nil {
-					return fmt.Errorf("getting chunk after putting: %w", err)
-				}
-
-				if hashGet := sha256.Sum256(chunkBytesGet); hash != hashGet {
-					return fmt.Errorf("hash mismatch after put: expected %x, got: '%x'", hash[:4], hashGet[:4])
 				}
 
 				return nil

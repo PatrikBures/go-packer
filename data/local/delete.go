@@ -16,9 +16,10 @@ func (ds *dataStore) DeletePacks(packs []uint64) (bytesRemoved int64, err error)
 		// stats file, continuing if it exists in active
 		stat, err = os.Stat(ds.completedPackPath(packID))
 		if errors.Is(err, os.ErrNotExist) {
-			// this still causes the next err check to error if active does not exist
-			if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil {
+			if _, aerr := os.Stat(ds.activePackPath(packID)); aerr == nil || errors.Is(aerr, os.ErrNotExist) {
 				continue
+			} else {
+				return bytesRemoved, fmt.Errorf("stating active pack after not finding it in completed: %w", err)
 			}
 		}
 		if err != nil {

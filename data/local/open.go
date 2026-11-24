@@ -9,6 +9,9 @@ import (
 )
 
 func (ds *dataStore) SwitchPack(packID uint64) error {
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
+
 	locked, err := ds.tryLockPack(packID)
 	if err != nil {
 		return fmt.Errorf("locking pack: %w", err)
@@ -21,15 +24,12 @@ func (ds *dataStore) SwitchPack(packID uint64) error {
 		return err
 	}
 
-	if ds.packPulse != nil {
-		ds.packPulse.Close()
-	}
-	ds.packPulse = ds.startPackPulse(packID)
-
 	return nil
 }
 
 func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
 
 	locked, packID, err := ds.lockLargestPack(minSize)
 	if err != nil {
@@ -41,8 +41,14 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 
 	defer func() {
 		if err == nil { return }
-		_ = ds.unlockPack(packID)
+		if uerr := ds.unlockPack(packID); uerr != nil {
+			err = errors.Join(err, fmt.Errorf("unlocking after error: %w", uerr))
+		}
 	}()
+
+	if _, err = os.Stat(ds.activePackPath(packID)); err != nil {
+		return fmt.Errorf("bug! pack dissapeared after locking")
+	}
 
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_RDWR, 0664)
 	if err != nil {
@@ -63,11 +69,7 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 		return fmt.Errorf("completing pack: %w", err)
 	}
 
-	if ds.packPulse != nil {
-		ds.packPulse.Close()
-	}
 	ds.packPulse = ds.startPackPulse(packID)
-
 	ds.currentPackID = packID
 	ds.currentPackFile = f
 	ds.currentPackOffset = stat.Size()
@@ -79,7 +81,9 @@ func (ds *dataStore) SwitchPackExisting(minSize int64) (err error) {
 func (ds *dataStore) createPack(packID uint64) (err error) {
 	defer func() {
 		if err == nil { return }
-		_ = ds.unlockPack(packID)
+		if uerr := ds.unlockPack(packID); uerr != nil {
+			err = errors.Join(err, fmt.Errorf("unlocking after error: %w", uerr))
+		}
 	}()
 
 	f, err := os.OpenFile(ds.activePackPath(packID), os.O_CREATE|os.O_RDWR, 0664)
@@ -88,9 +92,7 @@ func (ds *dataStore) createPack(packID uint64) (err error) {
 	}
 
 	defer func() {
-		if err == nil {
-			return
-		}
+		if err == nil { return }
 		_ = f.Close()
 	}()
 
@@ -110,6 +112,7 @@ func (ds *dataStore) createPack(packID uint64) (err error) {
 		return err
 	}
 
+	ds.packPulse = ds.startPackPulse(packID)
 	ds.currentPackID = packID
 	ds.currentPackFile = f
 	ds.currentPackOffset = size
@@ -117,7 +120,7 @@ func (ds *dataStore) createPack(packID uint64) (err error) {
 	return nil
 }
 
-// moves current pack to completed, closes, unlocks it and updates header state.
+// moves current pack to completed, closes, stops pulse, unlocks it and updates header state.
 func (ds *dataStore) movePackCompleted() error {
 	if ds.currentPackFile == nil {
 		return nil
@@ -147,8 +150,11 @@ func (ds *dataStore) movePackCompleted() error {
 		return fmt.Errorf("renaming prev pack to completed: %w", err)
 	}
 
+	ds.packPulse.Close()
+	ds.packPulse = nil
+
 	if err := ds.unlockPack(ds.currentPackID); err != nil {
-		return fmt.Errorf("unlocking prev pack: %w", err)
+		return fmt.Errorf("unlocking pack that was moved to completed: %w", err)
 	}
 
 	return nil

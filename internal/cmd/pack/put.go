@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 )
 
 type PutCmd struct {
@@ -17,8 +19,9 @@ func (c *PutCmd) Run(ctx *Context) error {
 	dataHash := sha256.Sum256(c.Data)
 
 	if c.Count == 1 {
+		pctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*500))
 		hash := sha256.Sum256([]byte(c.Name))
-		if err := ctx.packager.Put(hash[:], c.Data); err != nil {
+		if err := ctx.packager.Put(pctx, hash[:], c.Data); err != nil {
 			return err
 		}
 
@@ -28,9 +31,10 @@ func (c *PutCmd) Run(ctx *Context) error {
 		return nil
 	}
 	for i := range c.Count {
+		pctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*500))
 		name := fmt.Sprintf("%s%d", c.Name, i+1)
 		hash := sha256.Sum256([]byte(name))
-		if err := ctx.packager.Put(hash[:], c.Data); err != nil {
+		if err := ctx.packager.Put(pctx, hash[:], c.Data); err != nil {
 			return err
 		}
 
