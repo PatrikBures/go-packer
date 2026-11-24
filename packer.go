@@ -83,19 +83,16 @@ func (p *Packager) Put(ctx context.Context, id []byte, data []byte) error {
 		ci, err := p.dataStore.Put(data)
 		if err == nil {
 			if merr = p.metadataStore.Put(id, ci); merr == nil {
-				fmt.Println("put chunk in attempts:", attempt)
 				return nil // only exits if dataStore and metadataStore had no errors
 			} else if !errors.Is(merr, ErrNewPack) {
 				return fmt.Errorf("failed adding chunk to metadata store: %w", merr)
 			}
 			// metadata says new pack is needed
-			fmt.Println("metadata needs new pack!!!")
 		} else if !errors.Is(err, ErrNewPack) {
 			return fmt.Errorf("failed writing chunk to pack: %w", err)
 		}
 
-		// only runs this if at least one of DS or MS returned ErrNewPack
-		// and the one that did not, returned nil.
+		// only runs if either DS or MS returned ErrNewPack
 		rotated, err := p.rotatePackLocked(startPackID, int64(len(data)))
 		if err != nil {
 			return fmt.Errorf("rotating to new pack: %w", err)
