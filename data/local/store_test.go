@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"go.pabu.dev/packer"
+	"go.pabu.dev/packer/data/datatest"
 )
 
 func newDS(t testing.TB, opts ...Option) *dataStore {
@@ -22,6 +23,19 @@ func newDS(t testing.TB, opts ...Option) *dataStore {
 		t.Fatal(err)
 	}
 	return ds
+}
+
+func TestSuite(t *testing.T) {
+	datatest.RunSuite(t, func(t *testing.T, dir string, maxPackSize int64) packer.DataStore {
+		ds := New(dir, WithMaxPackSize(maxPackSize))
+		if err := ds.Init(); !errors.Is(err, packer.ErrNewPack) {
+			t.Fatalf("expected error '%v', received '%v'", packer.ErrNewPack, err)
+		}
+		if err := ds.SwitchPack(0); err != nil {
+			t.Fatal(err)
+		}
+		return ds
+	})
 }
 
 func TestData(t *testing.T) {
@@ -91,8 +105,8 @@ func TestPutChunk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if firstTd.ci.Offset != 0 {
-		t.Fatal("expected offset to be 0 on first chunk, was: %w", firstTd.ci.Offset)
+	if firstTd.ci.Offset != headerLen {
+		t.Fatalf("expected offset to be %d on first chunk, was: %d", headerLen, firstTd.ci.Offset)
 	}
 
 	testData[0] = firstTd

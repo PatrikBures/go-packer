@@ -48,7 +48,6 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 
 // Writes data starting at offset to file.
 // Prepends the prefix and its data before the chunk.
-// Removes headerLen from the final offset (not sure if to keep).
 //
 // packID is just used for the returning ChunkInfo.
 func putChunk(packID uint64, data []byte, f *os.File, offset int64) (packer.ChunkInfo, error) {
@@ -76,7 +75,7 @@ func putChunk(packID uint64, data []byte, f *os.File, offset int64) (packer.Chun
 
 	return packer.ChunkInfo{
 		PackID: packID,
-		Offset: uint64(offset - headerLen),
+		Offset: uint64(offset),
 		Size:   sizeU32,
 	}, nil
 }

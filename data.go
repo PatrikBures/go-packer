@@ -2,6 +2,7 @@ package packer
 
 import (
 	"fmt"
+	"io"
 
 	"go.pabu.dev/bytesize"
 )
@@ -20,6 +21,9 @@ type DataStore interface {
 	// Returns ErrNewPack if a new pack is needed, rerun after switching pack.
 	Put(data []byte) (ChunkInfo, error)
 	Get(ChunkInfo, []byte) ([]byte, error)
+
+	// Returns a standard io.Reader for reading a chunk
+	GetReader(ChunkInfo) (io.Reader, error)
 
 	// Normalizes pack size.
 	NormalizePackSize(size uint64, chunkCount uint32) uint64

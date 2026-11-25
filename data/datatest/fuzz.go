@@ -125,8 +125,6 @@ func (ms *metadataStore) RemovePending(packID uint64) {
 	}
 }
 
-type StoreFactory func(t *testing.T, dir string, maxPackSize int64) packer.DataStore
-
 func FuzzData(f *testing.F, factory StoreFactory, instances int, routinesPerInstance int) {
 
 	f.Add(uint64(112233))
