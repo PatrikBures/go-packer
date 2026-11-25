@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"sync/atomic"
 	"time"
@@ -162,6 +163,21 @@ func (p *Packager) Get(id []byte, buf []byte) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// Gets reader for chunk.
+func (p *Packager) GetReader(id []byte) (io.Reader, error) {
+	ci, err := p.metadataStore.Get(id)
+	if err != nil {
+		return nil, fmt.Errorf("getting id from metadataStore: %w", err)
+	}
+
+	r, err := p.dataStore.GetReader(ci)
+	if err != nil {
+		return nil, fmt.Errorf("getting data from dataStore: %w", err)
+	}
+
+	return r, nil
 }
 
 // Deletes multiple chunks
