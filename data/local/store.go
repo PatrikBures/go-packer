@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.pabu.dev/packer/data/local/internal/packread"
+	"go.pabu.dev/packer/data/local/internal/packwrite"
 	"go.pabu.dev/packer/data/local/internal/pulser"
 )
 
@@ -37,6 +38,7 @@ type dataStore struct {
 	lockPulseInterval time.Duration
 
 	packRead packread.PackRead
+	packWrite packwrite.PackWrite
 }
 
 
@@ -97,6 +99,7 @@ func New(packDir string, opts ...Option) *dataStore {
 	ds := dataStore{
 		packDir:           packDir,
 		packRead:          packread.New(),
+		packWrite:         packwrite.New(),
 		maxPackSize:       1024 << 16, // 64MiB
 		growBuf:           false,
 		lockStaleDuration: time.Minute*10,

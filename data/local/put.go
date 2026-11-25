@@ -15,33 +15,37 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, errors.New("data is larger than MaxUint32")
 	}
 
-	// using defer mutex does not allow multiple writes to same pack.
-	// in the futurure, it could allocate the required data size, and then write.
-	// that should allow multiple writes to same pack.
-	//
-	// the issue is with having just one chunk allowed to be written to a pack,
-	// is that if one user has slow upload speed, it will slow down other users
-	// writing to the same pack.
-	//
-	// ideally it would unlock once it allocated the chunk in the pack.
-	// or it could pre-allocate the entire pack with maxPackSize, and then trim it
-	// once the pack becomes full and is moved to completed.
-
 	ds.writePackMu.Lock()
-	defer ds.writePackMu.Unlock()
 
 	totalSize := int64(len(data) + prefixLen)
 
 	if ds.currentPackOffset+totalSize >= ds.maxPackSize {
+		ds.writePackMu.Unlock()
 		return packer.ChunkInfo{}, packer.ErrNewPack
 	}
 
-	ci, err := putChunk(ds.currentPackID, data, ds.currentPackFile, ds.currentPackOffset)
+
+	f := ds.currentPackFile
+	offset := ds.currentPackOffset
+	packID := ds.currentPackID
+
+	ds.packWrite.Add(packID, f)
+
+	ds.currentPackOffset += totalSize
+
+	ds.writePackMu.Unlock()
+
+	ci, err := putChunk(packID, data, f, offset)
 	if err != nil {
 		return packer.ChunkInfo{}, err
 	}
 
-	ds.currentPackOffset += totalSize
+	ds.writePackMu.Lock()
+	defer ds.writePackMu.Unlock()
+
+	if err := ds.packWrite.Dec(packID, ds.currentPackID); err != nil {
+		return packer.ChunkInfo{}, fmt.Errorf("decrementing packWrite counter: %w", err)
+	}
 
 	return ci, nil
 }
