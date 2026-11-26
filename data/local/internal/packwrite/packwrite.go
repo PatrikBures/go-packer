@@ -1,103 +1,64 @@
 package packwrite
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"time"
+	"sync"
 )
 
-// it is not concurrently safe, so ensure that only one routine is modifying it.
 type PackWrite struct {
-	packs map[uint64]pack
+	mu sync.Mutex
+	packs map[uint64]int // id and number of writers
 }
 
-type pack struct {
-	f *os.File
-	writers uint64
-	switched time.Time
-}
-
+// Creates new PackWrite object.
+// used for tracking the number of routines
+// writing to that same pack to ensure it is not
+// closed when a different routine is writing to it.
+// 
+// All methods which modify are concurrently safe.
 func New() PackWrite {
 	return PackWrite{
-		packs: make(map[uint64]pack),
+		packs: make(map[uint64]int),
 	}
 }
 
-// Adds 1 writer to pack. Creates a new entry using the provided
-// file, if an entry for the packID does not already exist.
-func (pw *PackWrite) Add(packID uint64, f *os.File) {
-	if p, exists := pw.packs[packID]; exists {
-		p.writers++
-		pw.packs[packID] = p
-	} else {
-		pw.packs[packID] = pack{
-			f: f,
-			writers: 1,
-			switched: time.Now(),
-		}
-	}
+// Adds increments the number of writer to pack.
+func (pw *PackWrite) Add(packID uint64) {
+	pw.mu.Lock()
+	defer pw.mu.Unlock()
+
+	pw.packs[packID]++
 }
 
 // Decrements the amount of writers for pack, if it becomes zero
-// and packID is not currentPackID, it will close it and return its
-// error if there is any.
-func (pw *PackWrite) Dec(packID uint64, currentPackID uint64) error {
-	p, exists := pw.packs[packID]
+// it returns true, meaning the file can be closed.
+//
+// If the provided pack does not exist, or decrementing
+// would make the number of zeros be below 0, it panics.
+func (pw *PackWrite) Dec(packID uint64) bool {
+	pw.mu.Lock()
+	defer pw.mu.Unlock()
 
+	n, exists := pw.packs[packID]
 	if !exists {
-		return fmt.Errorf("pack with packID %d not found", packID)
+		panic(fmt.Errorf("tried decrementing non-existing pack"))
 	}
 
-	if p.writers == 0 {
-		return fmt.Errorf("writers is 0 before decreasing it, it can not be decreased more")
-	}
-
-	p.writers--
-
-	if p.writers == 0 {
-		if currentPackID != packID {
-			if err := close(p.f); err != nil {
-				return fmt.Errorf("closing pack file with packID %d: %w", packID, err)
-			}
-		}
+	if n == 1 {
 		delete(pw.packs, packID)
+		return true
+	} else if n > 1 {
+		pw.packs[packID]--
+	} else {
+		panic(fmt.Errorf("count for writers is 0 or less and can't decrement more"))
 	}
-
-	return nil
+	
+	return false
 }
 
-func (pw *PackWrite) CloseSwitchedLaterThan(dur time.Duration) (err error) {
-	now := time.Now()
 
-	var closes int
-	var errs int
-	for k, v := range pw.packs {
-		diff := now.Sub(v.switched)
-		if diff >= dur {
-			ec := close(v.f)
-			if ec != nil {
-				err = errors.Join(err, fmt.Errorf("closing pack file with id %d: %w", k, ec))
-				errs++
-			}
-			closes++
-		}
-	}
-
-	if err != nil {
-		return fmt.Errorf("%d/%d write packs closing errored: %w", errs, closes, err)
-	}
-
-	return nil
-}
-
-func close(f *os.File) error {
-	if err := f.Sync(); err != nil {
-		return err
-	}
-
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return nil
+// Returns true if a routine is currently writing to the pack.
+func (pw *PackWrite) Exists(packID uint64) bool {
+	_, exists := pw.packs[packID]
+	return exists
 }

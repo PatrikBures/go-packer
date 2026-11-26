@@ -35,6 +35,8 @@ func (p *Pulse) Err() error {
 	return p.err
 }
 
+// Starts a goroutine which continuesly updates the modtime for
+// the provided path with the specified interval.
 func Start(path string, interval time.Duration) *Pulse {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

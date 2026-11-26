@@ -22,8 +22,15 @@ type dataStore struct {
 	currentPackOffset int64
 	currentPackID     uint64
 
-	writePackMu sync.Mutex
+	// An Rlock is used when writing to the current pack.
+	// And the Write Lock is used when switching or allocating
+	// space for a chunk. It allows for concurrent writes to the
+	// same pack.
+	writePackMu sync.RWMutex
 
+	// Pulse is used for continusly updating the mod time for the lock
+	// of the pack to ensure a different routine does not remove that lock
+	// thinking it is not used.
 	packPulse *pulser.Pulse
 
 	// options
@@ -32,13 +39,13 @@ type dataStore struct {
 	growBuf           bool
 
 	// how old the ModTime needs to be for a lock to consider it stale and available.
-	lockStaleDuration time.Duration 
+	lockStaleDuration time.Duration
 
 	// how often the lock ModTime should update.
 	lockPulseInterval time.Duration
 
-	packRead packread.PackRead
 	packWrite packwrite.PackWrite
+	packRead packread.PackRead
 }
 
 

@@ -24,27 +24,31 @@ func (ds *dataStore) Put(data []byte) (packer.ChunkInfo, error) {
 		return packer.ChunkInfo{}, packer.ErrNewPack
 	}
 
-
 	f := ds.currentPackFile
 	offset := ds.currentPackOffset
 	packID := ds.currentPackID
-
-	ds.packWrite.Add(packID, f)
+	pulse := ds.packPulse
 
 	ds.currentPackOffset += totalSize
 
+	// it is ran within the writePackMu lock, to ensure that
+	// antoher routine does not close the file.
+	ds.packWrite.Add(packID)
+
 	ds.writePackMu.Unlock()
+
+	ds.writePackMu.RLock()
+	defer ds.writePackMu.RUnlock()
 
 	ci, err := putChunk(packID, data, f, offset)
 	if err != nil {
 		return packer.ChunkInfo{}, err
 	}
 
-	ds.writePackMu.Lock()
-	defer ds.writePackMu.Unlock()
-
-	if err := ds.packWrite.Dec(packID, ds.currentPackID); err != nil {
-		return packer.ChunkInfo{}, fmt.Errorf("decrementing packWrite counter: %w", err)
+	if ds.packWrite.Dec(packID) && packID != ds.currentPackID {
+		if ds.movePackCompleted(packID, f, pulse); err != nil {
+			return packer.ChunkInfo{}, fmt.Errorf("closing pack write file: %w", err)
+		}
 	}
 
 	return ci, nil
